@@ -8,7 +8,11 @@
     "dev": "nodemon src/server.js",
     "seed": "node src/scripts/seed.js"
   },
-  "keywords": ["nuoyuan", "website", "api"],
+  "keywords": [
+    "nuoyuan",
+    "website",
+    "api"
+  ],
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -17,6 +21,7 @@
     "express": "^4.21.0",
     "express-validator": "^7.2.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
     "mysql2": "^3.11.3",
     "nodemailer": "^6.9.15"
   },
