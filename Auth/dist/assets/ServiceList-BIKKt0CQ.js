@@ -1,0 +1,1 @@
+import{Qt as e,an as t}from"./index-DkIJC22j.js";import n from"./ProductList-KBXd3nIm.js";var r={__name:`ServiceList`,setup(r){return(r,i)=>(t(),e(n))}};export{r as default};
