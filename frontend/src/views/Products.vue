@@ -40,9 +40,9 @@ const {
   modulesAfterList,
 } = useCatalogModules(pageModules, {
   bannerSystemKey: 'products_banner',
-  bannerModuleName: '产品页Banner模块',
+  bannerModuleName: 'Banner模块',
   listSystemKey: 'products_list_block',
-  listModuleNameIncludes: '产品列表模块（系统）',
+  listModuleNameIncludes: '列表模块',
 })
 
 const pageTitleText = computed(() => {

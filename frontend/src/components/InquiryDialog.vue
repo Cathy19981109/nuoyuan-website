@@ -9,12 +9,28 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+const HIDDEN_CUSTOM_LABELS = new Set([
+  '联系人',
+  '联系电话',
+  '联系邮箱',
+  '单位名称',
+  '咨询产品',
+  '咨询产品/服务',
+  '样品规格',
+  '规格/类型',
+  '实验需求',
+  '需求描述',
+])
+
 const form = ref({
   name: '',
   phone: '',
   email: '',
   company: '',
+  product_key: '',
   product_name: '',
+  product_id: null,
+  spec: '',
   demand: '',
 })
 
@@ -23,82 +39,90 @@ const formLoading = ref(false)
 const success = ref(false)
 const errorMsg = ref('')
 const customSchema = ref([])
-const inquiryOptions = ref([])
-const inquiryKeyword = ref('')
-const inquiryPanelOpen = ref(false)
-const MAX_OPTION_COUNT = 20
+const catalogItems = ref([])
+const OTHER_KEY = 'other'
+const catalogMenuOpen = ref(false)
 
-watch(
-  () => props.modelValue,
-  async (val) => {
-    if (val) {
-      success.value = false
-      errorMsg.value = ''
-      const productLabel = props.product?.inquiry_product_name || props.product?.name || ''
-      form.value.product_name = productLabel
-      if (props.product?.variant_name && !form.value.demand) {
-        const parts = [
-          `规格：${props.product.variant_name}`,
-          props.product.variant_goods_code ? `变体编码：${props.product.variant_goods_code}` : '',
-          props.product.variant_price ? `参考价：¥${props.product.variant_price}` : '',
-        ].filter(Boolean)
-        form.value.demand = parts.join('\n')
-      }
-      formLoading.value = true
+const productItems = computed(() => catalogItems.value.filter((i) => i.kind === 'product'))
+const serviceItems = computed(() => catalogItems.value.filter((i) => i.kind === 'service'))
+
+const catalogDisplayLabel = computed(() => {
+  if (form.value.product_key === OTHER_KEY) return '其他'
+  if (selectedCatalogItem.value) return selectedCatalogItem.value.label
+  if (form.value.product_name) return form.value.product_name
+  return '请选择产品或服务'
+})
+
+const visibleCustomFields = computed(() =>
+  (customSchema.value || []).filter((f) => !HIDDEN_CUSTOM_LABELS.has(String(f.label || '').trim()))
+)
+
+const selectedCatalogItem = computed(() =>
+  catalogItems.value.find((item) => item.key === form.value.product_key) || null
+)
+
+const isOtherSelected = computed(() => form.value.product_key === OTHER_KEY)
+
+const showSpecField = computed(() => !isOtherSelected.value && !!form.value.product_key)
+
+const specOptions = computed(() => {
+  if (!showSpecField.value) return []
+  const item = selectedCatalogItem.value
+  if (!item) return []
+  return item.variants || []
+})
+
+function parseVariants(row = {}) {
+  const fromJson = Array.isArray(row.variants)
+    ? row.variants
+    : (() => {
       try {
-        const tpl = await getInquiryForm()
-        customSchema.value = tpl?.schema_json || []
-        const [productList, serviceList] = await Promise.all([
-          fetchAllProducts(),
-          fetchAllServices(),
-        ])
-        inquiryOptions.value = buildInquiryOptions(productList, serviceList)
-        inquiryKeyword.value = form.value.product_name || ''
+        const parsed = typeof row.variants_json === 'string'
+          ? JSON.parse(row.variants_json)
+          : row.variants_json
+        return Array.isArray(parsed) ? parsed : []
       } catch {
-        customSchema.value = []
-        inquiryOptions.value = []
-        inquiryKeyword.value = form.value.product_name || ''
-      } finally {
-        formLoading.value = false
+        return []
       }
-    }
-  }
-)
+    })()
 
-watch(
-  () => props.product,
-  (val) => {
-    if (val) {
-      form.value.product_name = val.inquiry_product_name || val.name
-      inquiryKeyword.value = form.value.product_name
-    }
-  }
-)
+  const enabled = fromJson
+    .filter((v) => Number(v?.status) !== 0 && String(v?.name || '').trim())
+    .map((v) => ({
+      value: String(v.name).trim(),
+      label: String(v.name).trim(),
+      goods_code: v.goods_code || '',
+      price: v.price || '',
+    }))
 
-function buildInquiryOptions(productList = [], serviceList = []) {
-  const dedupe = []
-  const seen = new Set()
-  const pushName = (name) => {
-    const cleanName = String(name || '').trim()
-    if (!cleanName) return
-    const key = cleanName.toLowerCase()
-    if (!seen.has(key)) {
-      seen.add(key)
-      dedupe.push({ value: cleanName, label: cleanName })
-    }
-  }
-  ;(productList || []).forEach((item) => pushName(item?.name))
-  ;(serviceList || []).forEach((item) => pushName(item?.name))
-  return dedupe
+  if (enabled.length) return enabled
+
+  const fromText = String(row.spec_text || '')
+    .split(/\r?\n|,|，|；|;/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((name) => ({ value: name, label: name, goods_code: '', price: '' }))
+
+  return fromText
 }
 
-const filteredInquiryOptions = computed(() => {
-  const kw = String(inquiryKeyword.value || '').trim().toLowerCase()
-  if (!kw) return inquiryOptions.value.slice(0, MAX_OPTION_COUNT)
-  return inquiryOptions.value
-    .filter((item) => item.label.toLowerCase().includes(kw))
-    .slice(0, MAX_OPTION_COUNT)
-})
+function buildCatalog(productList = [], serviceList = []) {
+  const products = (productList || []).map((item) => ({
+    key: `product:${item.id}`,
+    id: item.id,
+    kind: 'product',
+    label: String(item.name || '').trim(),
+    variants: parseVariants(item),
+  }))
+  const services = (serviceList || []).map((item) => ({
+    key: `service:${item.id}`,
+    id: item.id,
+    kind: 'service',
+    label: String(item.name || '').trim(),
+    variants: parseVariants(item),
+  }))
+  return [...products, ...services].filter((item) => item.label)
+}
 
 async function fetchAllProducts() {
   const all = []
@@ -126,30 +150,124 @@ async function fetchAllServices() {
   return all
 }
 
+function resetFormBase() {
+  form.value = {
+    name: '',
+    phone: '',
+    email: '',
+    company: '',
+    product_key: '',
+    product_name: '',
+    product_id: null,
+    spec: '',
+    demand: '',
+  }
+}
+
+function applyIncomingProduct() {
+  const incoming = props.product
+  if (!incoming) return
+
+  const kind = incoming._detailPath?.includes('/services/') || incoming.service_code
+    ? 'service'
+    : 'product'
+  const key = `${kind}:${incoming.id}`
+  const found = catalogItems.value.find((item) => item.key === key)
+    || catalogItems.value.find((item) => item.label === (incoming.name || '').trim())
+
+  if (found) {
+    form.value.product_key = found.key
+    form.value.product_name = found.label
+    form.value.product_id = found.id
+  } else if (incoming.name) {
+    // 兜底：当前列表未命中时仍保留名称
+    form.value.product_key = ''
+    form.value.product_name = incoming.inquiry_product_name || incoming.name
+    form.value.product_id = incoming.id || null
+  }
+
+  const variantName = String(incoming.variant_name || incoming.selected_variant?.name || '').trim()
+  if (variantName) {
+    form.value.spec = variantName
+  } else if (found?.variants?.length === 1) {
+    form.value.spec = found.variants[0].value
+  } else {
+    form.value.spec = ''
+  }
+}
+
+function onProductChange() {
+  if (form.value.product_key === OTHER_KEY) {
+    form.value.product_name = '其他'
+    form.value.product_id = null
+    form.value.spec = ''
+    return
+  }
+  const item = selectedCatalogItem.value
+  if (!item) {
+    form.value.product_name = ''
+    form.value.product_id = null
+    form.value.spec = ''
+    return
+  }
+  form.value.product_name = item.label
+  form.value.product_id = item.id
+  if (item.variants.length === 1) {
+    form.value.spec = item.variants[0].value
+  } else if (!item.variants.some((v) => v.value === form.value.spec)) {
+    form.value.spec = ''
+  }
+}
+
+function selectCatalogKey(key) {
+  form.value.product_key = key
+  onProductChange()
+  catalogMenuOpen.value = false
+}
+
+function toggleCatalogMenu() {
+  if (formLoading.value) return
+  catalogMenuOpen.value = !catalogMenuOpen.value
+}
+
+watch(
+  () => props.modelValue,
+  async (val) => {
+    if (!val) return
+    success.value = false
+    errorMsg.value = ''
+    catalogMenuOpen.value = false
+    resetFormBase()
+    formLoading.value = true
+    try {
+      const tpl = await getInquiryForm()
+      customSchema.value = Array.isArray(tpl?.schema_json) ? tpl.schema_json : []
+      const [productList, serviceList] = await Promise.all([
+        fetchAllProducts(),
+        fetchAllServices(),
+      ])
+      catalogItems.value = buildCatalog(productList, serviceList)
+      applyIncomingProduct()
+    } catch {
+      customSchema.value = []
+      catalogItems.value = []
+      applyIncomingProduct()
+    } finally {
+      formLoading.value = false
+    }
+  }
+)
+
+watch(
+  () => props.product,
+  () => {
+    if (props.modelValue) applyIncomingProduct()
+  }
+)
+
 function close() {
+  catalogMenuOpen.value = false
   emit('update:modelValue', false)
-  inquiryPanelOpen.value = false
-}
-
-function onInquiryInput() {
-  form.value.product_name = inquiryKeyword.value
-  inquiryPanelOpen.value = true
-}
-
-function onInquiryFocus() {
-  inquiryPanelOpen.value = true
-}
-
-function onInquiryBlur() {
-  setTimeout(() => {
-    inquiryPanelOpen.value = false
-  }, 120)
-}
-
-function pickInquiryOption(item) {
-  form.value.product_name = item.value
-  inquiryKeyword.value = item.value
-  inquiryPanelOpen.value = false
 }
 
 async function handleSubmit() {
@@ -162,23 +280,58 @@ async function handleSubmit() {
     errorMsg.value = '请填写联系电话'
     return
   }
+  if (!form.value.email.trim()) {
+    errorMsg.value = '请填写邮箱'
+    return
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) {
+    errorMsg.value = '请填写正确的邮箱格式'
+    return
+  }
   if (!form.value.product_name.trim()) {
     errorMsg.value = '请选择咨询产品/服务'
     return
   }
+  if (showSpecField.value && specOptions.value.length && !form.value.spec.trim()) {
+    errorMsg.value = '请选择规格/类型'
+    return
+  }
+  if (!form.value.demand.trim()) {
+    errorMsg.value = '请填写需求描述'
+    return
+  }
+
+  for (const field of visibleCustomFields.value) {
+    if (field.required && !String(form.value[field.id] || '').trim()) {
+      errorMsg.value = `请填写${field.label}`
+      return
+    }
+  }
 
   loading.value = true
   try {
-    await submitInquiry({
-      ...form.value,
-      product_id: props.product?.id || null,
-      custom_form_data: customSchema.value.map((f) => ({
+    const custom_form_data = [
+      ...visibleCustomFields.value.map((f) => ({
         label: f.label,
         value: form.value[f.id] || '',
       })),
+      ...(showSpecField.value && form.value.spec
+        ? [{ label: '规格/类型', value: form.value.spec }]
+        : []),
+    ].filter((row) => String(row.value || '').trim())
+
+    await submitInquiry({
+      name: form.value.name,
+      phone: form.value.phone,
+      email: form.value.email,
+      company: form.value.company,
+      product_name: form.value.product_name,
+      product_id: isOtherSelected.value ? null : (form.value.product_id || props.product?.id || null),
+      demand: form.value.demand,
+      custom_form_data,
     })
     success.value = true
-    form.value = { name: '', phone: '', email: '', company: '', product_name: '', demand: '' }
+    resetFormBase()
   } catch (err) {
     errorMsg.value = err.message
   } finally {
@@ -202,58 +355,117 @@ async function handleSubmit() {
 
         <form v-else @submit.prevent="handleSubmit">
           <div v-if="formLoading" class="subtitle">正在加载询价表单...</div>
+
           <div class="form-row">
-            <label>联系人姓名 *</label>
+            <label><span class="required">*</span>联系人姓名</label>
             <input v-model="form.name" type="text" placeholder="请输入姓名" />
           </div>
           <div class="form-row">
-            <label>联系电话 *</label>
+            <label><span class="required">*</span>联系电话</label>
             <input v-model="form.phone" type="tel" placeholder="请输入手机号" />
           </div>
           <div class="form-row">
-            <label>邮箱</label>
-            <input v-model="form.email" type="email" placeholder="请输入邮箱（选填）" />
+            <label><span class="required">*</span>邮箱</label>
+            <input v-model="form.email" type="email" placeholder="请输入邮箱" />
           </div>
           <div class="form-row">
             <label>公司/单位</label>
-            <input v-model="form.company" type="text" placeholder="请输入公司或单位名称" />
+            <input v-model="form.company" type="text" placeholder="请输入公司或单位名称（选填）" />
           </div>
+
           <div class="form-row">
-            <label>咨询产品/服务 *</label>
-            <div class="inquiry-picker">
-              <input
-                v-model="inquiryKeyword"
-                type="text"
-                placeholder="请输入产品名/服务名（支持模糊搜索）"
-                @input="onInquiryInput"
-                @focus="onInquiryFocus"
-                @blur="onInquiryBlur"
-              />
-              <div v-if="inquiryPanelOpen" class="inquiry-options">
+            <label><span class="required">*</span>咨询产品/服务</label>
+            <div class="catalog-picker" @keydown.esc="catalogMenuOpen = false">
+              <button
+                type="button"
+                class="catalog-trigger"
+                :class="{ open: catalogMenuOpen, placeholder: !form.product_key && !form.product_name }"
+                @click="toggleCatalogMenu"
+              >
+                <span>{{ catalogDisplayLabel }}</span>
+                <span class="catalog-caret">▾</span>
+              </button>
+              <div v-if="catalogMenuOpen" class="catalog-menu">
+                <template v-if="productItems.length">
+                  <div class="catalog-group-label">产品</div>
+                  <button
+                    v-for="item in productItems"
+                    :key="item.key"
+                    type="button"
+                    class="catalog-option"
+                    :class="{ active: form.product_key === item.key }"
+                    @click="selectCatalogKey(item.key)"
+                  >
+                    {{ item.label }}
+                  </button>
+                </template>
+                <template v-if="serviceItems.length">
+                  <div class="catalog-group-label">服务</div>
+                  <button
+                    v-for="item in serviceItems"
+                    :key="item.key"
+                    type="button"
+                    class="catalog-option"
+                    :class="{ active: form.product_key === item.key }"
+                    @click="selectCatalogKey(item.key)"
+                  >
+                    {{ item.label }}
+                  </button>
+                </template>
                 <button
-                  v-for="item in filteredInquiryOptions"
-                  :key="item.value"
                   type="button"
-                  class="inquiry-option"
-                  @mousedown.prevent="pickInquiryOption(item)"
+                  class="catalog-group-label is-action"
+                  :class="{ active: form.product_key === OTHER_KEY }"
+                  @click="selectCatalogKey(OTHER_KEY)"
                 >
-                  {{ item.label }}
+                  其他
                 </button>
-                <div v-if="!filteredInquiryOptions.length" class="inquiry-empty">没有匹配结果，请继续输入</div>
               </div>
             </div>
           </div>
-          <div class="form-row">
-            <label>需求描述</label>
-            <textarea v-model="form.demand" rows="4" placeholder="请描述您的具体需求..." />
+
+          <div v-if="showSpecField" class="form-row">
+            <label><span v-if="specOptions.length" class="required">*</span>规格/类型</label>
+            <select v-model="form.spec" :disabled="!specOptions.length">
+              <option value="">
+                {{
+                  specOptions.length ? '请选择规格/类型' : '暂无可选规格/类型'
+                }}
+              </option>
+              <option
+                v-for="opt in specOptions"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}{{ opt.price ? ` · ¥${opt.price}` : '' }}
+              </option>
+            </select>
           </div>
-          <div v-for="field in customSchema.filter(f => !['联系人','联系电话','联系邮箱','单位名称','咨询产品','实验需求'].includes(f.label))" :key="field.id" class="form-row">
-            <label>{{ field.label }}<span v-if="field.required"> *</span></label>
+
+          <div
+            v-for="field in visibleCustomFields"
+            :key="field.id"
+            class="form-row"
+          >
+            <label><span v-if="field.required" class="required">*</span>{{ field.label }}</label>
+            <select
+              v-if="field.type === 'select'"
+              v-model="form[field.id]"
+            >
+              <option value="">{{ field.placeholder || '请选择' }}</option>
+              <option
+                v-for="opt in (field.options || [])"
+                :key="opt"
+                :value="opt"
+              >
+                {{ opt }}
+              </option>
+            </select>
             <input
-              v-if="field.type !== 'textarea'"
+              v-else-if="field.type !== 'textarea'"
               v-model="form[field.id]"
               :maxlength="field.maxLength || undefined"
-              type="text"
+              :type="field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'"
               :placeholder="field.placeholder || '请输入内容'"
             />
             <textarea
@@ -264,8 +476,14 @@ async function handleSubmit() {
               :placeholder="field.placeholder || '请输入内容'"
             />
           </div>
+
+          <div class="form-row">
+            <label><span class="required">*</span>需求描述</label>
+            <textarea v-model="form.demand" rows="4" placeholder="请描述您的具体需求..." />
+          </div>
+
           <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
-          <button type="submit" class="btn btn-primary submit-btn" :disabled="loading">
+          <button type="submit" class="btn btn-primary submit-btn" :disabled="loading || formLoading">
             {{ loading ? '提交中...' : '提交询价' }}
           </button>
         </form>
@@ -331,6 +549,12 @@ async function handleSubmit() {
   font-weight: 500;
 }
 
+.required {
+  color: #dc2626;
+  margin-right: 4px;
+  font-weight: 700;
+}
+
 .form-row input,
 .form-row textarea,
 .form-row select {
@@ -342,50 +566,108 @@ async function handleSubmit() {
   outline: none;
   transition: border-color 0.2s;
   font-family: inherit;
-}
-
-.inquiry-picker {
-  position: relative;
-}
-
-.inquiry-options {
-  margin-top: 6px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  max-height: 180px;
-  overflow: auto;
   background: #fff;
-  display: grid;
-  gap: 4px;
-  padding: 6px;
-}
-
-.inquiry-option {
-  text-align: left;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: #fff;
-  padding: 8px 10px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #1f2937;
-}
-
-.inquiry-option:hover {
-  background: #f3f4f6;
-  border-color: #e5e7eb;
-}
-
-.inquiry-empty {
-  color: #6b7280;
-  font-size: 12px;
-  padding: 8px 10px;
 }
 
 .form-row input:focus,
 .form-row textarea:focus,
 .form-row select:focus {
   border-color: var(--color-primary);
+}
+
+.form-row select:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.catalog-picker {
+  position: relative;
+}
+
+.catalog-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.catalog-trigger.placeholder {
+  color: #94a3b8;
+}
+
+.catalog-trigger.open {
+  border-color: var(--color-primary);
+}
+
+.catalog-caret {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.catalog-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px 0;
+}
+
+.catalog-group-label {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 14px 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-align: left;
+  cursor: default;
+}
+
+.catalog-group-label.is-action {
+  cursor: pointer;
+  padding: 8px 14px;
+}
+
+.catalog-group-label.is-action:hover,
+.catalog-group-label.is-action.active {
+  background: #f8fafc;
+}
+
+.catalog-option {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 14px 8px 22px;
+  font-size: 14px;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.catalog-option:hover,
+.catalog-option.active {
+  background: #f1f5f9;
 }
 
 .error {

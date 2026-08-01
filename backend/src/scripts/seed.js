@@ -26,21 +26,16 @@ async function seedConfig() {
   const configs = [
     { config_key: 'site_name', config_value: '诺元智合', name: '网站名称', description: '网站名称', sort: 1 },
     { config_key: 'site_logo', config_value: '', name: '网站Logo', description: 'Logo图片URL', sort: 2 },
-    { config_key: 'brand_title', config_value: '诺元智合', name: '品牌标题', description: '顶部品牌名称，最多8个中文字符', sort: 2 },
-    { config_key: 'brand_logo', config_value: '', name: '品牌Logo', description: 'Logo上传规范：1:1，推荐200x200，png/jpg/webp，<=500KB', sort: 2 },
-    { config_key: 'contact_phone', config_value: '', name: '联系电话', description: '前台展示联系电话', sort: 3 },
-    { config_key: 'contact_email', config_value: '', name: '联系邮箱', description: '前台展示联系邮箱', sort: 4 },
-    { config_key: 'contact_address', config_value: '', name: '联系地址', description: '公司地址', sort: 5 },
-    { config_key: 'online_consult_url', config_value: '', name: '在线咨询链接', description: '第三方在线咨询URL', sort: 6 },
+    { config_key: 'brand_logo', config_value: '/uploads/images/brand-logo-nuoyuan.png', name: '品牌Logo', description: '含品牌名的透明底 Logo 图', sort: 2 },
+    { config_key: 'inquiry_emails', config_value: '[]', name: '询价接收邮箱', description: '最多10个接收邮箱，JSON数组', sort: 6 },
     { config_key: 'icp_no', config_value: '', name: 'ICP备案号', description: '网站备案号', sort: 7 },
     { config_key: 'footer_copyright', config_value: '© 诺元智合 NUOYUAN BIOTECH. All rights reserved.', name: '底部版权文案', description: '最多100字符', sort: 8 },
     { config_key: 'seo_global_keywords', config_value: '', name: '全站SEO关键词', description: 'SEO关键词，多个可用逗号分隔', sort: 9 },
     { config_key: 'seo_global_description', config_value: '', name: '全站SEO描述', description: 'SEO描述', sort: 9 },
-    { config_key: 'inquiry_email', config_value: '', name: '询价接收邮箱', description: '接收询价通知的邮箱地址', sort: 10 },
-    { config_key: 'smtp_host', config_value: '', name: 'SMTP服务器', description: '邮件发送SMTP主机', sort: 11 },
-    { config_key: 'smtp_port', config_value: '465', name: 'SMTP端口', description: '邮件发送SMTP端口', sort: 12 },
-    { config_key: 'smtp_user', config_value: '', name: 'SMTP用户名', description: '邮件发送账号', sort: 13 },
-    { config_key: 'smtp_pass', config_value: '', name: 'SMTP密码', description: '邮件发送密码/授权码', sort: 14 },
+    { config_key: 'smtp_host', config_value: '', name: 'SMTP服务器', description: '发信服务器地址', sort: 20 },
+    { config_key: 'smtp_port', config_value: '465', name: 'SMTP端口', description: '常见 465/587', sort: 21 },
+    { config_key: 'smtp_user', config_value: '', name: 'SMTP账号', description: '发信邮箱账号', sort: 22 },
+    { config_key: 'smtp_pass', config_value: '', name: 'SMTP密码/授权码', description: '邮箱密码或授权码', sort: 23 },
   ];
 
   for (const cfg of configs) {
@@ -286,28 +281,6 @@ async function seedNewsCategory() {
   console.log('[Seed] 新闻分类已创建');
 }
 
-async function seedInquiryFormTemplate() {
-  try {
-    const [rows] = await pool.query('SELECT id FROM nuoyuan_inquiry_form_template LIMIT 1');
-    if (rows.length > 0) return;
-    const schema = [
-      { id: 'f_name', label: '联系人', type: 'text', required: true, placeholder: '请输入联系人姓名', maxLength: 30 },
-      { id: 'f_phone', label: '联系电话', type: 'phone', required: true, placeholder: '请输入联系电话', maxLength: 20 },
-      { id: 'f_email', label: '联系邮箱', type: 'email', required: false, placeholder: '请输入邮箱', maxLength: 100 },
-      { id: 'f_company', label: '单位名称', type: 'text', required: false, placeholder: '请输入公司/单位名称', maxLength: 120 },
-      { id: 'f_spec', label: '样品规格', type: 'text', required: false, placeholder: '请输入样品规格', maxLength: 120 },
-      { id: 'f_demand', label: '实验需求', type: 'textarea', required: true, placeholder: '请填写详细需求', maxLength: 2000 },
-    ];
-    await pool.query(
-      'INSERT INTO nuoyuan_inquiry_form_template (name, is_default, schema_json, status) VALUES (?, 1, ?, 1)',
-      ['默认询价表单', JSON.stringify(schema)]
-    );
-    console.log('[Seed] 询价表单模板已创建');
-  } catch (err) {
-    console.log('[Seed] 未检测到询价表单模板表，请先执行升级SQL：backend/sql/upgrade_v2.sql');
-  }
-}
-
 async function seedProductFilterTags() {
   try {
     const defaults = [
@@ -381,7 +354,6 @@ async function main() {
     await seedProductCategories();
     await seedProductFilterTags();
     await seedNewsCategory();
-    await seedInquiryFormTemplate();
     console.log('[Seed] 初始化完成');
     process.exit(0);
   } catch (err) {

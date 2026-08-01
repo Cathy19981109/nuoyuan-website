@@ -234,8 +234,11 @@ router.post(
 router.put('/applications/:id', applicationController.update);
 router.delete('/applications/:id', applicationController.remove);
 
+
 // 询价管理
 router.get('/inquiries', inquiryController.getList);
+router.get('/inquiries/notify-emails', inquiryController.getNotifyEmails);
+router.put('/inquiries/notify-emails', inquiryController.saveNotifyEmails);
 router.get('/inquiries/:id', inquiryController.getById);
 router.put(
   '/inquiries/:id/handle',
@@ -258,6 +261,7 @@ router.post(
   configController.upsert
 );
 router.put('/config/:id', configController.update);
+
 
 // 官网中心（运营可读）
 router.get('/site-center', opsController.getSiteCenter);
@@ -282,6 +286,7 @@ router.get('/module-recycle', opsController.getRecycle);
 router.put('/module-recycle/:pageKey/reorder', opsController.reorderRecycle);
 router.put('/module-recycle/:id/restore', opsController.restoreRecycle);
 router.delete('/module-recycle/:id', opsController.purgeRecycle);
+
 
 // 询价表单拖拽模板
 router.get('/inquiry-form-template', opsController.getInquiryFormTemplate);

@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>数据统计</h2>
-        <p class="desc">查看日活、热门产品浏览与询价转化情况</p>
+        <p class="desc">查看日活与热门产品浏览情况</p>
       </div>
       <div class="toolbar">
         <select v-model="quickRange" class="form-control" style="max-width: 180px">
@@ -37,32 +37,16 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom: 20px">
-      <h3 style="margin-bottom: 10px">产品浏览与询价排行</h3>
+    <div class="card">
+      <h3 style="margin-bottom: 10px">产品浏览排行</h3>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>产品编码</th><th>产品名称</th><th>浏览量</th><th>询价量</th></tr></thead>
+          <thead><tr><th>产品编码</th><th>产品名称</th><th>浏览量</th></tr></thead>
           <tbody>
             <tr v-for="row in data.hotProducts" :key="row.id">
               <td>{{ row.product_code || '-' }}</td>
               <td>{{ row.name }}</td>
               <td>{{ row.view_count }}</td>
-              <td>{{ row.inquiry_count }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin-bottom: 10px">询价转化（月度）</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>月份</th><th>询价总量</th></tr></thead>
-          <tbody>
-            <tr v-for="row in data.inquiryMonthly" :key="row.month">
-              <td>{{ row.month }}</td>
-              <td>{{ row.inquiry_count }}</td>
             </tr>
           </tbody>
         </table>
@@ -82,8 +66,6 @@ const endDate = ref('')
 const data = ref({
   trafficDaily: [],
   hotProducts: [],
-  inquiryMonthly: [],
-  inquiryByProduct: [],
 })
 
 function toDateText(date) {
@@ -132,10 +114,8 @@ function exportRowsAsCsv(filename, headers, rows) {
 
 function exportExcel() {
   const trafficRows = data.value.trafficDaily.map((r) => [r.stat_date, r.visit_count, r.visitor_count])
-  const hotRows = data.value.hotProducts.map((r) => [r.product_code || '-', r.name, r.view_count, r.inquiry_count])
-  const inquiryRows = data.value.inquiryMonthly.map((r) => [r.month, r.inquiry_count])
+  const hotRows = data.value.hotProducts.map((r) => [r.product_code || '-', r.name, r.view_count])
   exportRowsAsCsv('数据统计_流量.csv', ['日期', '访问次数', '访客人数'], trafficRows)
-  exportRowsAsCsv('数据统计_产品.csv', ['产品编码', '产品名称', '浏览量', '询价量'], hotRows)
-  exportRowsAsCsv('数据统计_询价.csv', ['月份', '询价总量'], inquiryRows)
+  exportRowsAsCsv('数据统计_产品.csv', ['产品编码', '产品名称', '浏览量'], hotRows)
 }
 </script>

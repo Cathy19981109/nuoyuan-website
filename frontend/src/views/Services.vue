@@ -37,9 +37,9 @@ const {
   modulesAfterList,
 } = useCatalogModules(pageModules, {
   bannerSystemKey: 'services_banner',
-  bannerModuleName: '服务页Banner模块',
+  bannerModuleName: 'Banner模块',
   listSystemKey: 'services_list_block',
-  listModuleNameIncludes: '服务列表模块（系统）',
+  listModuleNameIncludes: '列表模块',
 })
 
 const breadcrumbs = computed(() => {

@@ -7,7 +7,14 @@ import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
 import { DEFAULT_CATALOG_BANNER } from '@/composables/useCatalogModules'
 
 const route = useRoute()
-const results = ref({ products: [], news: [], pages: [] })
+const results = ref({
+  products: [],
+  services: [],
+  news: [],
+  applications: [],
+  modules: [],
+  pages: [],
+})
 const loading = ref(false)
 const keyword = ref('')
 
@@ -20,11 +27,17 @@ const breadcrumbs = computed(() => {
   return items
 })
 
+const hasResults = computed(() =>
+  ['products', 'services', 'modules', 'news', 'applications', 'pages'].some(
+    (key) => (results.value[key] || []).length > 0
+  )
+)
+
 async function doSearch(kw) {
   if (!kw.trim()) return
   loading.value = true
   try {
-    results.value = await searchSite(kw.trim())
+    results.value = await searchSite(kw.trim(), { pageSize: 20 })
   } finally {
     loading.value = false
   }
@@ -71,6 +84,37 @@ watch(
               </router-link>
             </div>
           </div>
+
+          <div v-if="results.services?.length" class="result-group">
+            <h2>服务 ({{ results.services.length }})</h2>
+            <div class="result-list">
+              <router-link
+                v-for="item in results.services"
+                :key="'s' + item.id"
+                :to="`/services/${item.id}`"
+                class="result-item"
+              >
+                <h3>{{ item.name }}</h3>
+                <p>{{ item.short_desc }}</p>
+              </router-link>
+            </div>
+          </div>
+
+          <div v-if="results.modules?.length" class="result-group">
+            <h2>内容板块 ({{ results.modules.length }})</h2>
+            <div class="result-list">
+              <router-link
+                v-for="item in results.modules"
+                :key="'m' + item.id"
+                :to="item.to || '/'"
+                class="result-item"
+              >
+                <h3>{{ item.title || item.main_title || item.module_name }}</h3>
+                <p>{{ item.short_desc }}</p>
+              </router-link>
+            </div>
+          </div>
+
           <div v-if="results.news?.length" class="result-group">
             <h2>新闻 ({{ results.news.length }})</h2>
             <div class="result-list">
@@ -85,13 +129,29 @@ watch(
               </router-link>
             </div>
           </div>
+
+          <div v-if="results.applications?.length" class="result-group">
+            <h2>应用 ({{ results.applications.length }})</h2>
+            <div class="result-list">
+              <router-link
+                v-for="item in results.applications"
+                :key="'a' + item.id"
+                to="/applications"
+                class="result-item"
+              >
+                <h3>{{ item.name }}</h3>
+                <p>{{ item.short_desc }}</p>
+              </router-link>
+            </div>
+          </div>
+
           <div v-if="results.pages?.length" class="result-group">
             <h2>页面 ({{ results.pages.length }})</h2>
             <div class="result-list">
               <router-link
                 v-for="item in results.pages"
                 :key="'pg' + item.id"
-                :to="item.link_url || '/'"
+                :to="item.to || item.path || '/'"
                 class="result-item"
               >
                 <h3>{{ item.title || item.name }}</h3>
@@ -99,12 +159,8 @@ watch(
               </router-link>
             </div>
           </div>
-          <div
-            v-if="!results.products?.length && !results.news?.length && !results.pages?.length"
-            class="empty"
-          >
-            未找到相关结果
-          </div>
+
+          <div v-if="!hasResults" class="empty">未找到相关结果</div>
         </div>
       </div>
     </section>
@@ -148,5 +204,12 @@ watch(
   font-size: 13px;
   color: var(--color-text-light);
   line-height: 1.6;
+}
+
+.loading,
+.empty {
+  text-align: center;
+  color: var(--color-text-light);
+  padding: 40px 0;
 }
 </style>

@@ -6,8 +6,6 @@ import CatalogHeroBanner from '@/components/catalog/CatalogHeroBanner.vue'
 import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
 import { DEFAULT_CATALOG_BANNER } from '@/composables/useCatalogModules'
 
-defineEmits(['open-inquiry'])
-
 const route = useRoute()
 const application = ref(null)
 const loading = ref(true)
@@ -47,7 +45,6 @@ onMounted(async () => {
           <div v-else class="empty-content">
             <p>{{ application.description || '暂无详细内容' }}</p>
           </div>
-          <button class="btn btn-primary" @click="$emit('open-inquiry')">咨询此领域服务</button>
         </div>
       </section>
     </template>

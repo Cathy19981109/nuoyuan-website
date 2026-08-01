@@ -32,23 +32,23 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { getProductList, getNewsList, getInquiryList, getNavList } from '@/api'
+import { getProductList, getServiceList, getInquiryList, getNavList } from '@/api'
 
 const auth = useAuthStore()
 
 const stats = ref([
   { label: '导航菜单', value: '-', icon: '🧭' },
   { label: '产品数量', value: '-', icon: '🧬' },
-  { label: '新闻数量', value: '-', icon: '📰' },
+  { label: '服务数量', value: '-', icon: '🔬' },
   { label: '待处理询价', value: '-', icon: '💬' },
 ])
 
 const quickLinks = [
   { path: '/nav', label: '导航管理', icon: '🧭' },
+  { path: '/page-editor', label: '页面编辑', icon: '📄' },
   { path: '/products', label: '产品管理', icon: '🧬' },
-  { path: '/news', label: '新闻管理', icon: '📰' },
+  { path: '/services-admin', label: '服务管理', icon: '🔬' },
   { path: '/inquiries', label: '询价管理', icon: '💬' },
-  { path: '/config', label: '系统配置', icon: '⚙️' },
 ]
 
 function countNav(items) {
@@ -65,15 +65,15 @@ function countNav(items) {
 
 onMounted(async () => {
   try {
-    const [nav, products, news, inquiries] = await Promise.all([
+    const [nav, products, services, inquiries] = await Promise.all([
       getNavList(),
       getProductList({ page: 1, pageSize: 1 }),
-      getNewsList({ page: 1, pageSize: 1 }),
+      getServiceList({ page: 1, pageSize: 1 }),
       getInquiryList({ status: 0, page: 1, pageSize: 1 }),
     ])
     stats.value[0].value = countNav(nav)
     stats.value[1].value = products.pagination?.total ?? 0
-    stats.value[2].value = news.pagination?.total ?? 0
+    stats.value[2].value = services.pagination?.total ?? 0
     stats.value[3].value = inquiries.pagination?.total ?? 0
   } catch {
     // ignore dashboard stat errors
@@ -99,17 +99,16 @@ onMounted(async () => {
 .stat-icon { font-size: 28px; }
 .stat-value { font-size: 28px; font-weight: 700; color: var(--color-primary); }
 .stat-label { font-size: 13px; color: var(--color-text-light); margin-top: 2px; }
-.section-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: var(--color-primary); }
+.section-title { font-size: 16px; margin-bottom: 16px; }
 .quick-links { display: flex; flex-wrap: wrap; gap: 12px; }
 .quick-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 18px;
-  background: var(--color-bg);
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s;
+  color: var(--color-text);
 }
-.quick-link:hover { background: #e2e8f0; color: var(--color-primary); }
+.quick-link:hover { border-color: var(--color-primary); color: var(--color-primary); }
 </style>

@@ -6,59 +6,12 @@ const SITE_CENTER_GROUPS = [
     title: '官网信息',
     items: [
       {
-        label: '品牌名',
-        key: 'brand_title',
-        inputType: 'text',
-        maxLength: 8,
-        required: true,
-        tips: '前台头部展示品牌名，建议2-8个字',
-      },
-      {
         label: '品牌Logo',
         key: 'brand_logo',
         inputType: 'image',
-        required: false,
-        uploadRule: '选择文件或拖拽上传，建议1:1，200x200，png/jpg/webp，<=50MB（不合规可裁剪压缩）',
-      },
-      {
-        label: '联系电话',
-        key: 'contact_phone',
-        inputType: 'text',
-        maxLength: 30,
-      },
-      {
-        label: '联系邮箱',
-        key: 'contact_email',
-        inputType: 'text',
-        maxLength: 100,
-      },
-      {
-        label: '联系地址',
-        key: 'contact_address',
-        inputType: 'text',
-        maxLength: 200,
-        tips: '用于联系我们页面右侧地址展示',
-      },
-      {
-        label: '地图说明',
-        key: 'contact_map_note',
-        inputType: 'text',
-        maxLength: 200,
-        tips: '用于联系我们页面右侧地图区域下方说明',
-      },
-      {
-        label: '高德地图嵌入链接',
-        key: 'contact_map_embed_url',
-        inputType: 'text',
-        maxLength: 500,
-        tips: '粘贴高德地图分享的嵌入链接，前台右侧直接显示真实地图',
-      },
-      {
-        label: '高德导航跳转链接',
-        key: 'contact_map_nav_url',
-        inputType: 'text',
-        maxLength: 500,
-        tips: '点击地图或按钮时跳转高德导航页面',
+        required: true,
+        tips: '请上传包含品牌名的 Logo 图片（透明底 PNG 更佳）。头部将仅展示该图片，不再单独显示文字品牌名。',
+        uploadRule: '推荐透明底 PNG，横向构图（图标+品牌名），建议高度 80–120px、宽度自适应，png/jpg/webp，<=50MB',
       },
       {
         label: '底部版权文字',
@@ -76,13 +29,36 @@ const SITE_CENTER_GROUPS = [
   },
   {
     key: 'site_email',
-    title: '邮箱与询价通知',
+    title: '发信邮箱（SMTP）',
     items: [
-      { label: '询价接收邮箱', key: 'inquiry_email', inputType: 'text', maxLength: 100 },
-      { label: 'SMTP服务器', key: 'smtp_host', inputType: 'text', maxLength: 100 },
-      { label: 'SMTP端口', key: 'smtp_port', inputType: 'number', maxLength: 5 },
-      { label: 'SMTP账号', key: 'smtp_user', inputType: 'text', maxLength: 100 },
-      { label: 'SMTP密码/授权码', key: 'smtp_pass', inputType: 'password', maxLength: 200 },
+      {
+        label: 'SMTP服务器',
+        key: 'smtp_host',
+        inputType: 'text',
+        maxLength: 100,
+        tips: '发信服务器地址，如 smtp.qq.com、smtp.163.com、smtp.exmail.qq.com',
+      },
+      {
+        label: 'SMTP端口',
+        key: 'smtp_port',
+        inputType: 'number',
+        maxLength: 5,
+        tips: '常见：465（SSL）或 587（STARTTLS）',
+      },
+      {
+        label: 'SMTP账号',
+        key: 'smtp_user',
+        inputType: 'text',
+        maxLength: 100,
+        tips: '用于发信的邮箱账号（一般即完整邮箱地址）',
+      },
+      {
+        label: 'SMTP密码/授权码',
+        key: 'smtp_pass',
+        inputType: 'password',
+        maxLength: 200,
+        tips: '邮箱密码或服务商提供的「授权码」（QQ/163 等通常需在邮箱设置中开启 SMTP 并生成授权码）',
+      },
     ],
   },
 ];
@@ -137,16 +113,16 @@ async function updateSiteCenter(payload = {}) {
   for (const [key, rawValue] of entries) {
     if (!byKey[key]) continue;
     let value = rawValue;
-    if (key === 'brand_title' && typeof value === 'string') {
-      value = value.slice(0, 8);
-    }
     if (key === 'footer_copyright' && typeof value === 'string') {
       value = value.slice(0, 100);
     }
-    await setConfigValue(key, value || '', byKey[key].label, byKey[key].tips || '');
+    await setConfigValue(key, value || '', byKey[key].label, byKey[key].tips || byKey[key].uploadRule || '');
   }
-  if (!String(payload.brand_title || '').trim()) {
-    const err = new Error('品牌名为必填项');
+  const logo = Object.prototype.hasOwnProperty.call(payload, 'brand_logo')
+    ? String(payload.brand_logo || '').trim()
+    : String(await getConfigValue('brand_logo') || '').trim();
+  if (!logo) {
+    const err = new Error('请上传品牌 Logo（需包含品牌名的图片）');
     err.name = 'ValidationError';
     throw err;
   }

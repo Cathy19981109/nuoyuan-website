@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>SEO管理</h2>
-        <p class="desc">统一维护全站、栏目、单品/资讯SEO信息</p>
+        <p class="desc">统一维护全站、栏目、单品/资讯 SEO；资讯正文请在「导航&amp;页面管理 → 页面编辑」维护，此处仅编辑 SEO 字段</p>
       </div>
       <button class="btn btn-primary" @click="openSourceCheck">前台源码校验</button>
     </div>

@@ -1,20 +1,49 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { getProducts, getNewsList, getPageModules } from '@/api'
 import ProductCard from '@/components/ProductCard.vue'
 import ModuleRenderer from '@/components/modules/ModuleRenderer.vue'
 import { applySeoMeta } from '@/composables/useSeo'
+import { useCatalogModules } from '@/composables/useCatalogModules'
 
 defineProps({
   siteConfig: { type: Object, default: () => ({}) },
 })
 
-defineEmits(['open-inquiry'])
-
 const hotProducts = ref([])
 const latestNews = ref([])
 const pageModules = ref([])
 const loading = ref(true)
+
+const {
+  bannerModule,
+  bannerImage,
+  normalModules,
+} = useCatalogModules(pageModules, {
+  bannerSystemKey: 'home_banner',
+  bannerModuleName: 'Banner模块',
+})
+
+const heroTitle = computed(() => String(bannerModule.value?.main_title || '').trim() || '诺元智合')
+const heroEn = computed(() => {
+  const fromExtra = String(bannerModule.value?.extra_json?.subtitle_en || '').trim()
+  return fromExtra || 'NUOYUAN BIOTECH'
+})
+const heroDesc = computed(() =>
+  String(bannerModule.value?.body_text || '').trim()
+  || '专注基因编辑核心服务与科研实验试剂，为生命科学研究提供高品质解决方案'
+)
+
+const heroStyle = computed(() => {
+  const url = bannerImage.value
+  if (!url) return undefined
+  const src = url.startsWith('http') || url.startsWith('/') ? url : `/${url}`
+  return {
+    backgroundImage: `linear-gradient(135deg, rgba(11, 45, 92, 0.72) 0%, rgba(15, 23, 42, 0.78) 100%), url(${src})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }
+})
 
 onMounted(async () => {
   try {
@@ -36,11 +65,11 @@ onMounted(async () => {
 
 <template>
   <div class="home">
-    <section class="hero">
+    <section class="hero" :style="heroStyle">
       <div class="container hero-content">
-        <h1>诺元智合</h1>
-        <p class="hero-en">NUOYUAN BIOTECH</p>
-        <p class="hero-desc">专注基因编辑核心服务与科研实验试剂，为生命科学研究提供高品质解决方案</p>
+        <h1>{{ heroTitle }}</h1>
+        <p class="hero-en">{{ heroEn }}</p>
+        <p class="hero-desc">{{ heroDesc }}</p>
         <div class="hero-actions">
           <router-link to="/products" class="btn btn-primary">探索产品</router-link>
           <router-link to="/services" class="btn btn-outline hero-outline">技术服务</router-link>
@@ -58,7 +87,6 @@ onMounted(async () => {
             v-for="item in hotProducts"
             :key="item.id"
             :product="item"
-            @open-inquiry="$emit('open-inquiry', $event)"
           />
         </div>
         <div v-else class="empty">暂无产品数据</div>
@@ -118,14 +146,14 @@ onMounted(async () => {
         </div>
       </div>
     </section>
-    <ModuleRenderer :modules="pageModules" />
+    <ModuleRenderer :modules="normalModules" content-align="center" />
   </div>
 </template>
 
 <style scoped>
 .home :deep(.section-title),
 .home :deep(.section-subtitle) {
-  text-align: left;
+  text-align: center;
 }
 
 .hero {
@@ -133,14 +161,15 @@ onMounted(async () => {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: var(--color-white);
   padding: 80px 0 100px;
-  text-align: left;
+  text-align: center;
   overflow: hidden;
 }
 
 .hero-content {
   position: relative;
   z-index: 1;
-  max-width: 640px;
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .hero h1 {
@@ -160,14 +189,14 @@ onMounted(async () => {
   font-size: 18px;
   opacity: 0.9;
   max-width: 640px;
-  margin: 0 0 36px;
+  margin: 0 auto 36px;
   line-height: 1.8;
 }
 
 .hero-actions {
   display: flex;
   gap: 16px;
-  justify-content: flex-start;
+  justify-content: center;
   flex-wrap: wrap;
 }
 
@@ -184,11 +213,11 @@ onMounted(async () => {
 .advantages .section-title,
 .news-section .section-title,
 .news-section .section-subtitle {
-  text-align: left;
+  text-align: center;
 }
 
 .section-action {
-  text-align: left;
+  text-align: center;
   margin-top: 40px;
 }
 
@@ -203,7 +232,7 @@ onMounted(async () => {
 }
 
 .advantage-item {
-  text-align: left;
+  text-align: center;
   padding: 32px 20px;
   border-radius: 12px;
   border: 1px solid var(--color-border);
@@ -244,7 +273,7 @@ onMounted(async () => {
 .news-item {
   padding: 24px;
   display: block;
-  text-align: left;
+  text-align: center;
 }
 
 .news-date {
@@ -268,10 +297,6 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.home :deep(.dynamic-module .text-box) {
-  text-align: left;
-}
-
 @media (max-width: 1024px) {
   .advantage-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -289,7 +314,7 @@ onMounted(async () => {
 
   .hero-actions {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
   }
 
   .advantage-grid {

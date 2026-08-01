@@ -106,13 +106,12 @@ function onInquiry() {
   const variant = selectedVariant.value
   emit('open-inquiry', {
     ...product.value,
+    _detailPath: isServiceDetail ? `/services/${product.value.id}` : `/products/${product.value.id}`,
     selected_variant: variant || null,
     variant_name: variant?.name || '',
     variant_goods_code: variant?.goods_code || '',
     variant_price: variant?.price || '',
-    inquiry_product_name: variant?.name
-      ? `${product.value.name}（${variant.name}）`
-      : product.value.name,
+    inquiry_product_name: product.value.name,
   })
 }
 

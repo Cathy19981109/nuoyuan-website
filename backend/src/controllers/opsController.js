@@ -16,6 +16,7 @@ async function saveSiteCenter(req, res, next) {
     const data = await operationsService.updateSiteCenter(req.body || {});
     return success(res, data, '官网中心已保存');
   } catch (err) {
+    if (err.name === 'ValidationError') return fail(res, err.message, 400, 400);
     next(err);
   }
 }
@@ -24,6 +25,24 @@ async function getFooterBlocks(req, res, next) {
   try {
     const data = await operationsService.getFooterBlocks();
     return success(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getInquiryFormTemplate(req, res, next) {
+  try {
+    const data = await operationsService.getInquiryFormTemplate();
+    return success(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function saveInquiryFormTemplate(req, res, next) {
+  try {
+    const data = await operationsService.saveInquiryFormTemplate(req.body || {});
+    return success(res, data, '询价表单模板已保存');
   } catch (err) {
     next(err);
   }
@@ -52,24 +71,6 @@ async function deleteFooterBlock(req, res, next) {
   try {
     await operationsService.deleteFooterBlock(req.params.id);
     return success(res, null, '页脚栏目已删除');
-  } catch (err) {
-    next(err);
-  }
-}
-
-async function getInquiryFormTemplate(req, res, next) {
-  try {
-    const data = await operationsService.getInquiryFormTemplate();
-    return success(res, data);
-  } catch (err) {
-    next(err);
-  }
-}
-
-async function saveInquiryFormTemplate(req, res, next) {
-  try {
-    const data = await operationsService.saveInquiryFormTemplate(req.body || {});
-    return success(res, data, '询价表单模板已保存');
   } catch (err) {
     next(err);
   }

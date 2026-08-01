@@ -15,7 +15,13 @@ const layoutClass = computed(() => {
     <div class="container">
       <div class="footer-grid" :class="layoutClass">
         <div class="footer-brand">
-          <div class="brand-name">{{ siteConfig.brand_title || '诺元智合' }}</div>
+          <img
+            v-if="siteConfig.brand_logo || siteConfig.site_logo"
+            class="brand-logo"
+            :src="siteConfig.brand_logo || siteConfig.site_logo"
+            alt="品牌 Logo"
+          />
+          <div v-else class="brand-name">诺元智合</div>
           <p class="brand-desc">专注基因编辑核心服务与科研实验试剂，为生命科学研究提供高品质解决方案。</p>
         </div>
         <div class="footer-links">
@@ -27,10 +33,8 @@ const layoutClass = computed(() => {
         </div>
         <div class="footer-contact">
           <h4>联系我们</h4>
-          <p v-if="siteConfig.contact_phone">电话：{{ siteConfig.contact_phone }}</p>
-          <p v-if="siteConfig.contact_email">邮箱：{{ siteConfig.contact_email }}</p>
-          <p v-if="siteConfig.contact_address">地址：{{ siteConfig.contact_address }}</p>
-          <p v-if="!siteConfig.contact_phone && !siteConfig.contact_email">请通过询价或联系页面与我们沟通</p>
+          <router-link to="/contact">查看联系方式</router-link>
+          <p>请通过询价或联系页面与我们沟通</p>
         </div>
         <div v-for="block in footerBlocks" :key="block.id" class="footer-custom">
           <h4>{{ block.title }}</h4>
@@ -84,6 +88,17 @@ const layoutClass = computed(() => {
   margin-bottom: 40px;
 }
 
+.brand-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  max-height: 48px;
+  max-width: min(260px, 100%);
+  object-fit: contain;
+  object-position: left center;
+  margin-bottom: 12px;
+}
+
 .brand-name {
   font-size: 22px;
   font-weight: 700;
@@ -112,6 +127,18 @@ const layoutClass = computed(() => {
 }
 
 .footer-links a:hover {
+  opacity: 1;
+}
+
+.footer-contact a {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 10px;
+  opacity: 0.75;
+  transition: opacity 0.2s;
+}
+
+.footer-contact a:hover {
   opacity: 1;
 }
 

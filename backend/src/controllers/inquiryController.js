@@ -73,4 +73,33 @@ async function exportRows(req, res, next) {
   }
 }
 
-module.exports = { submit, getPublicForm, getList, getById, handle, remove, exportRows };
+async function getNotifyEmails(req, res, next) {
+  try {
+    const emails = await inquiryService.getInquiryNotifyEmails();
+    return success(res, { emails });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function saveNotifyEmails(req, res, next) {
+  try {
+    const emails = await inquiryService.setInquiryNotifyEmails(req.body?.emails || []);
+    return success(res, { emails }, '接收邮箱已保存');
+  } catch (err) {
+    if (err.name === 'ValidationError') return fail(res, err.message, 400, 400);
+    next(err);
+  }
+}
+
+module.exports = {
+  submit,
+  getPublicForm,
+  getList,
+  getById,
+  handle,
+  remove,
+  exportRows,
+  getNotifyEmails,
+  saveNotifyEmails,
+};

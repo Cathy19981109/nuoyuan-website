@@ -79,10 +79,6 @@ const menuItems = [
     { path: '/services-admin', label: '服务列表' },
   ] },
   { key: 'inquiry', path: '/inquiries', label: '询价管理', icon: '◪' },
-  { key: 'news', label: '资讯管理', icon: '◩', children: [
-    { path: '/news-categories', label: '新闻分类' },
-    { path: '/news', label: '新闻管理' },
-  ] },
   { key: 'permission', path: '/permission-manager', label: '权限管理', icon: '◎' },
   { key: 'seo', path: '/seo-manager', label: 'SEO管理', icon: '◰' },
 ]

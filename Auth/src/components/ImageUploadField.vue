@@ -76,5 +76,15 @@ async function onDrop(e) {
 
 <style scoped>
 .upload-box { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; display: grid; gap: 8px; }
-.preview { max-width: 120px; border-radius: 6px; display: block; }
+.preview {
+  max-width: min(280px, 100%);
+  max-height: 96px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: left center;
+  border-radius: 6px;
+  display: block;
+  background: repeating-conic-gradient(#f1f5f9 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+}
 </style>

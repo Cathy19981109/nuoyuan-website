@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>官网信息</h2>
-        <p class="desc">统一维护品牌与联系方式配置</p>
+        <p class="desc">统一维护品牌 Logo 与发信邮箱配置</p>
       </div>
       <button class="btn btn-primary" :disabled="saving" @click="saveAll">{{ saving ? '保存中...' : '保存官网信息' }}</button>
     </div>
@@ -126,8 +126,8 @@ async function loadData() {
 }
 
 async function saveAll() {
-  if (!String(form.value.brand_title || '').trim()) {
-    alert('品牌名为必填项')
+  if (!String(form.value.brand_logo || '').trim()) {
+    alert('请上传品牌 Logo（需包含品牌名的图片）')
     return
   }
   saving.value = true
@@ -152,6 +152,15 @@ async function processImageForKey(file, key, returnUrl = false) {
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
     alert('仅支持 png/jpg/webp 格式')
     return ''
+  }
+  // 品牌 Logo 为横向「图标+品牌名」图，不做 1:1 强制裁剪
+  if (key === 'brand_logo') {
+    const uploadFile = file.size > 50 * 1024 * 1024 ? await compressToLimit(file, 50 * 1024 * 1024) : file
+    const fd = new FormData()
+    fd.append('file', uploadFile, file.name)
+    const res = await uploadImageFile(fd)
+    if (!returnUrl) form.value[key] = res.url
+    return res.url
   }
   const size = await getImageSize(file)
   const ratio = size.width && size.height ? size.width / size.height : 0

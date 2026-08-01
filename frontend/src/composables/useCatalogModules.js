@@ -31,26 +31,48 @@ export function useCatalogModules(pageModules, options = {}) {
     bannerModuleName,
     listSystemKey,
     listModuleNameIncludes,
+    excludeSystemKeys = [],
   } = options
 
+  const excludeKeys = new Set(excludeSystemKeys)
+
   function isBannerModule(row) {
-    const key = row?.extra_json?.system_key
+    const key = String(row?.extra_json?.system_key || '')
     const name = String(row?.module_name || '')
-    return key === bannerSystemKey || name === bannerModuleName
+    if (bannerSystemKey && key === bannerSystemKey) return true
+    if (bannerModuleName && name === bannerModuleName) return true
+    return false
   }
 
   function isListSystemModule(row) {
     if (!listSystemKey && !listModuleNameIncludes) return false
-    const key = row?.extra_json?.system_key
+    const key = String(row?.extra_json?.system_key || '')
     const name = String(row?.module_name || '')
     if (listSystemKey && key === listSystemKey) return true
     if (listModuleNameIncludes && name.includes(listModuleNameIncludes)) return true
     return false
   }
 
+  function isExcludedSystemModule(row) {
+    const key = String(row?.extra_json?.system_key || '')
+    return !!key && excludeKeys.has(key)
+  }
+
   /** Full-bleed images are folded into CatalogHeroBanner, not listed again. */
   function isHeroAbsorbedModule(row) {
     return row?.module_template === 'full_width_single_image'
+  }
+
+  function isChildModule(row) {
+    return Number(row?.parent_id || 0) > 0
+  }
+
+  function isTopLevelContent(row) {
+    return !isBannerModule(row)
+      && !isListSystemModule(row)
+      && !isExcludedSystemModule(row)
+      && !isHeroAbsorbedModule(row)
+      && !isChildModule(row)
   }
 
   const bannerModule = computed(() => pageModules.value.find((m) => isBannerModule(m)) || null)
@@ -60,26 +82,26 @@ export function useCatalogModules(pageModules, options = {}) {
   const bannerImage = computed(() => {
     const fromBanner = firstImageUrl(bannerModule.value)
     if (fromBanner) return fromBanner
-    const absorbed = pageModules.value.find((m) => isHeroAbsorbedModule(m) && !isBannerModule(m) && !isListSystemModule(m))
+    const absorbed = pageModules.value.find((m) => isHeroAbsorbedModule(m) && !isBannerModule(m) && !isListSystemModule(m) && !isChildModule(m))
     return firstImageUrl(absorbed) || DEFAULT_CATALOG_BANNER
   })
 
   const normalModules = computed(() =>
-    pageModules.value.filter((m) => !isBannerModule(m) && !isListSystemModule(m) && !isHeroAbsorbedModule(m))
+    pageModules.value.filter((m) => isTopLevelContent(m))
   )
 
   const modulesBeforeList = computed(() => {
     if (listModuleIndex.value < 0) return []
     return pageModules.value
       .slice(0, listModuleIndex.value)
-      .filter((m) => !isBannerModule(m) && !isListSystemModule(m) && !isHeroAbsorbedModule(m))
+      .filter((m) => isTopLevelContent(m))
   })
 
   const modulesAfterList = computed(() => {
     if (listModuleIndex.value < 0) return normalModules.value
     return pageModules.value
       .slice(listModuleIndex.value + 1)
-      .filter((m) => !isBannerModule(m) && !isListSystemModule(m) && !isHeroAbsorbedModule(m))
+      .filter((m) => isTopLevelContent(m))
   })
 
   return {

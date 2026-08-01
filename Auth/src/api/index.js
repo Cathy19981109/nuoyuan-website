@@ -94,6 +94,8 @@ export const getInquiryList = (params) => request.get('/inquiries', { params })
 export const getInquiryById = (id) => request.get(`/inquiries/${id}`)
 export const handleInquiry = (id, data) => request.put(`/inquiries/${id}/handle`, data)
 export const deleteInquiry = (id) => request.delete(`/inquiries/${id}`)
+export const getInquiryNotifyEmails = () => request.get('/inquiries/notify-emails')
+export const saveInquiryNotifyEmails = (data) => request.put('/inquiries/notify-emails', data)
 
 export const getConfigList = () => request.get('/config')
 export const upsertConfig = (data) => request.post('/config', data)

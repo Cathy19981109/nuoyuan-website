@@ -10,6 +10,36 @@
       </div>
     </div>
 
+    <div class="card email-card">
+      <div class="email-card-head">
+        <div>
+          <h3>询价接收邮箱</h3>
+          <p class="desc">新询价将通过 SMTP 发信通知到以下邮箱，最多 10 个</p>
+        </div>
+        <button class="btn btn-primary btn-sm" :disabled="emailSaving || emailList.length >= 10" @click="addEmailRow">
+          添加邮箱
+        </button>
+      </div>
+      <div v-if="emailLoading" class="empty-state">加载中...</div>
+      <div v-else class="email-list">
+        <div v-for="(email, idx) in emailList" :key="idx" class="email-row">
+          <input
+            v-model="emailList[idx]"
+            class="form-control"
+            type="email"
+            placeholder="name@example.com"
+          />
+          <button class="btn btn-danger btn-sm" @click="removeEmailRow(idx)">删除</button>
+        </div>
+        <div v-if="!emailList.length" class="hint">暂未配置接收邮箱，用户提交询价后不会发送邮件通知</div>
+        <div class="email-actions">
+          <button class="btn btn-primary" :disabled="emailSaving" @click="saveEmails">
+            {{ emailSaving ? '保存中...' : '保存接收邮箱' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="toolbar">
       <select v-model="filterStatus" class="form-control" style="max-width:140px" @change="loadData(1)">
         <option value="">全部状态</option>
@@ -118,7 +148,15 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getInquiryList, getInquiryById, handleInquiry, deleteInquiry, exportInquiries } from '@/api'
+import {
+  getInquiryList,
+  getInquiryById,
+  handleInquiry,
+  deleteInquiry,
+  exportInquiries,
+  getInquiryNotifyEmails,
+  saveInquiryNotifyEmails,
+} from '@/api'
 import { confirmAction, INQUIRY_STATUS } from '@/utils/helpers'
 
 const loading = ref(false)
@@ -135,7 +173,53 @@ const jumpPage = ref(1)
 const search = ref({ name: '', phone: '', email: '', company: '', productKeyword: '' })
 const handleForm = ref({ status: 0, handle_note: '' })
 
+const emailLoading = ref(false)
+const emailSaving = ref(false)
+const emailList = ref([])
+
 function formatDate(d) { return d ? new Date(d).toLocaleString('zh-CN') : '-' }
+
+async function loadEmails() {
+  emailLoading.value = true
+  try {
+    const data = await getInquiryNotifyEmails()
+    emailList.value = Array.isArray(data?.emails) ? [...data.emails] : []
+  } catch (e) {
+    alert(e.message)
+  } finally {
+    emailLoading.value = false
+  }
+}
+
+function addEmailRow() {
+  if (emailList.value.length >= 10) {
+    alert('最多添加 10 个邮箱')
+    return
+  }
+  emailList.value.push('')
+}
+
+function removeEmailRow(idx) {
+  emailList.value.splice(idx, 1)
+}
+
+async function saveEmails() {
+  const cleaned = emailList.value.map((e) => String(e || '').trim()).filter(Boolean)
+  if (cleaned.length > 10) {
+    alert('最多添加 10 个邮箱')
+    return
+  }
+  emailSaving.value = true
+  try {
+    const data = await saveInquiryNotifyEmails({ emails: cleaned })
+    emailList.value = Array.isArray(data?.emails) ? [...data.emails] : cleaned
+    alert('接收邮箱已保存')
+  } catch (e) {
+    alert(e.message)
+  } finally {
+    emailSaving.value = false
+  }
+}
 
 async function loadData(p = page.value) {
   loading.value = true
@@ -212,10 +296,48 @@ async function downloadExport() {
   }
 }
 
-onMounted(() => loadData())
+onMounted(() => {
+  loadEmails()
+  loadData()
+})
 </script>
 
 <style scoped>
+.email-card {
+  margin-bottom: 16px;
+}
+.email-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.email-card-head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.email-card-head .desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-light, #64748b);
+}
+.email-list {
+  display: grid;
+  gap: 10px;
+}
+.email-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.email-actions {
+  margin-top: 4px;
+}
+.hint {
+  font-size: 13px;
+  color: #64748b;
+}
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

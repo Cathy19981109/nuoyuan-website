@@ -13,14 +13,6 @@ async function getPublicConfigs() {
     'site_name',
     'site_logo',
     'brand_logo',
-    'brand_title',
-    'contact_phone',
-    'contact_email',
-    'contact_address',
-    'contact_map_note',
-    'contact_map_embed_url',
-    'contact_map_nav_url',
-    'online_consult_url',
     'icp_no',
     'seo_global_keywords',
     'seo_global_description',
@@ -93,14 +85,174 @@ async function updateConfig(id, data) {
   return rows[0] || null;
 }
 
+function parseInquiryEmails(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map((e) => String(e || '').trim()).filter(Boolean).slice(0, 10);
+  }
+  const text = String(raw).trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed.map((e) => String(e || '').trim()).filter(Boolean).slice(0, 10);
+    }
+  } catch {
+    // fall through: comma/semicolon/newline separated
+  }
+  return text
+    .split(/[,;\n]+/)
+    .map((e) => e.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
+async function getInquiryNotifyEmails() {
+  const raw = await getConfigValue('inquiry_emails');
+  let list = parseInquiryEmails(raw);
+  if (!list.length) {
+    // 兼容旧单邮箱配置
+    const legacy = await getConfigValue('inquiry_email');
+    list = parseInquiryEmails(legacy);
+  }
+  return list;
+}
+
+async function setInquiryNotifyEmails(emails = []) {
+  const cleaned = parseInquiryEmails(emails);
+  for (const email of cleaned) {
+    if (!isValidEmail(email)) {
+      const err = new Error(`邮箱格式不正确：${email}`);
+      err.name = 'ValidationError';
+      throw err;
+    }
+  }
+  if (cleaned.length > 10) {
+    const err = new Error('最多添加 10 个接收邮箱');
+    err.name = 'ValidationError';
+    throw err;
+  }
+  const existing = await getConfigByKey('inquiry_emails');
+  if (existing) {
+    await pool.query(
+      'UPDATE nuoyuan_config SET config_value = ?, name = ?, description = ? WHERE config_key = ?',
+      [JSON.stringify(cleaned), '询价接收邮箱', '最多10个接收邮箱，JSON数组', 'inquiry_emails']
+    );
+  } else {
+    await pool.query(
+      'INSERT INTO nuoyuan_config (config_key, config_value, name, description, sort) VALUES (?, ?, ?, ?, ?)',
+      ['inquiry_emails', JSON.stringify(cleaned), '询价接收邮箱', '最多10个接收邮箱，JSON数组', 10]
+    );
+  }
+  return getInquiryNotifyEmails();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatSubmitTime(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString('zh-CN', { hour12: false });
+}
+
+function parseCustomFormData(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'object') {
+    return Object.entries(raw).map(([label, value]) => ({ label, value }));
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === 'object') {
+      return Object.entries(parsed).map(([label, value]) => ({ label, value }));
+    }
+  } catch {
+    return [];
+  }
+  return [];
+}
+
+function buildInquiryEmailContent(inquiry = {}) {
+  const customRows = parseCustomFormData(inquiry.custom_form_data)
+    .map((item) => ({
+      label: String(item?.label || item?.name || '').trim() || '补充字段',
+      value: String(item?.value ?? '').trim(),
+    }))
+    .filter((item) => item.value);
+
+  const fields = [
+    { label: '询价编号', value: inquiry.id != null ? `#${inquiry.id}` : '' },
+    { label: '联系人', value: inquiry.name },
+    { label: '联系电话', value: inquiry.phone },
+    { label: '联系邮箱', value: inquiry.email },
+    { label: '公司/单位', value: inquiry.company },
+    { label: '咨询产品/服务', value: inquiry.product_name },
+    { label: '产品/服务ID', value: inquiry.product_id },
+    { label: '需求描述', value: inquiry.demand },
+    ...customRows,
+    { label: '提交时间', value: formatSubmitTime(inquiry.submit_time) },
+  ].filter((item) => String(item.value ?? '').trim() !== '');
+
+  const textLines = [
+    '【诺元智合官网】完整询价信息',
+    '================================',
+    ...fields.map((item) => `${item.label}：${String(item.value).replace(/\r?\n/g, '\n')}`),
+    '================================',
+    '以上为用户提交的完整询价内容，请及时跟进。',
+  ];
+
+  const rowsHtml = fields
+    .map((item) => {
+      const isMultiline = String(item.value).includes('\n') || item.label === '需求描述';
+      const valueHtml = isMultiline
+        ? `<div style="white-space:pre-wrap;line-height:1.7;margin:0;">${escapeHtml(item.value)}</div>`
+        : escapeHtml(item.value);
+      return `
+        <tr>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;background:#f8fafc;width:140px;font-weight:600;color:#0f172a;vertical-align:top;">${escapeHtml(item.label)}</td>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;vertical-align:top;">${valueHtml}</td>
+        </tr>`;
+    })
+    .join('');
+
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;color:#0f172a;line-height:1.6;">
+      <h2 style="margin:0 0 8px;font-size:20px;color:#0b2d5c;">完整询价信息</h2>
+      <p style="margin:0 0 16px;color:#64748b;font-size:13px;">以下为用户在官网提交的全部询价内容，请直接据此跟进。</p>
+      <table style="border-collapse:collapse;width:100%;max-width:720px;font-size:14px;">
+        ${rowsHtml}
+      </table>
+    </div>
+  `;
+
+  return {
+    subject: `【询价详情】${inquiry.name || '客户'} - ${inquiry.product_name || '产品/服务咨询'}${inquiry.id != null ? ` #${inquiry.id}` : ''}`,
+    text: textLines.join('\n'),
+    html,
+  };
+}
+
 async function sendInquiryEmail(inquiry) {
   const smtpHost = await getConfigValue('smtp_host');
   const smtpPort = await getConfigValue('smtp_port');
   const smtpUser = await getConfigValue('smtp_user');
   const smtpPass = await getConfigValue('smtp_pass');
-  const inquiryEmail = await getConfigValue('inquiry_email');
+  const recipients = await getInquiryNotifyEmails();
 
-  if (!smtpHost || !smtpUser || !smtpPass || !inquiryEmail) {
+  if (!smtpHost || !smtpUser || !smtpPass || !recipients.length) {
     return { sent: false, reason: '邮件配置不完整，询价已保存但未发送邮件' };
   }
 
@@ -112,26 +264,17 @@ async function sendInquiryEmail(inquiry) {
       auth: { user: smtpUser, pass: smtpPass },
     });
 
-    const html = `
-      <h2>新的询价信息</h2>
-      <p><strong>联系人：</strong>${inquiry.name}</p>
-      <p><strong>电话：</strong>${inquiry.phone}</p>
-      <p><strong>邮箱：</strong>${inquiry.email || '未填写'}</p>
-      <p><strong>公司/单位：</strong>${inquiry.company || '未填写'}</p>
-      <p><strong>咨询产品：</strong>${inquiry.product_name || '未指定'}</p>
-      <p><strong>需求描述：</strong></p>
-      <p>${inquiry.demand}</p>
-      <p><strong>提交时间：</strong>${inquiry.submit_time}</p>
-    `;
+    const content = buildInquiryEmailContent(inquiry);
 
     await transporter.sendMail({
       from: `"诺元智合官网" <${smtpUser}>`,
-      to: inquiryEmail,
-      subject: `【询价】${inquiry.name} - ${inquiry.product_name || '产品咨询'}`,
-      html,
+      to: recipients.join(', '),
+      subject: content.subject,
+      text: content.text,
+      html: content.html,
     });
 
-    return { sent: true };
+    return { sent: true, recipients };
   } catch (err) {
     console.error('[Email Error]', err.message);
     return { sent: false, reason: '邮件发送失败，询价已保存' };
@@ -293,4 +436,6 @@ module.exports = {
   exportInquiryRows,
   getPublicInquiryForm,
   getInquiryListAdvanced,
+  getInquiryNotifyEmails,
+  setInquiryNotifyEmails,
 };

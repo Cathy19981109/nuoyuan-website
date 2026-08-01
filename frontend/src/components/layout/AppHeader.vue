@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { searchSite } from '@/api'
 
 const props = defineProps({
   navList: { type: Array, default: () => [] },
@@ -14,6 +15,12 @@ const router = useRouter()
 const searchKeyword = ref('')
 const showSearch = ref(false)
 const mobileMenuOpen = ref(false)
+const searchInputRef = ref(null)
+const suggestions = ref([])
+const searchLoading = ref(false)
+const showSuggestions = ref(false)
+let searchTimer = null
+let searchSeq = 0
 
 const navRouteMap = {
   首页: '/',
@@ -27,7 +34,6 @@ const navRouteMap = {
 
 const menuItems = computed(() => {
   if (props.navList.length) {
-    // Only top-level nav items; dropdown/submenus removed
     return props.navList
       .filter((item) => !item.parent_id || Number(item.parent_id) === 0)
       .map((item) => ({
@@ -42,10 +48,24 @@ const menuItems = computed(() => {
   }))
 })
 
-/** 立即询价仅出现在产品中心 / 技术服务（含详情），其他导航页不展示 */
-const showInquiryButton = computed(() => {
-  const path = route.path || ''
-  return path.startsWith('/products') || path.startsWith('/services')
+const groupedSuggestions = computed(() => {
+  const groups = []
+  const order = ['product', 'service', 'module', 'news', 'application', 'page']
+  const labelMap = {
+    product: '产品',
+    service: '服务',
+    module: '内容板块',
+    news: '新闻',
+    application: '应用',
+    page: '页面',
+  }
+  order.forEach((type) => {
+    const items = suggestions.value.filter((s) => s.type === type)
+    if (items.length) {
+      groups.push({ type, label: labelMap[type] || type, items })
+    }
+  })
+  return groups
 })
 
 function isActive(path) {
@@ -53,39 +73,114 @@ function isActive(path) {
   return route.path.startsWith(path)
 }
 
+async function toggleSearch() {
+  showSearch.value = !showSearch.value
+  mobileMenuOpen.value = false
+  if (showSearch.value) {
+    await nextTick()
+    searchInputRef.value?.focus?.()
+    if (searchKeyword.value.trim()) runSearch(searchKeyword.value)
+  } else {
+    showSuggestions.value = false
+  }
+}
+
+function clearSearchTimer() {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+    searchTimer = null
+  }
+}
+
+async function runSearch(raw) {
+  const kw = String(raw || '').trim()
+  if (!kw) {
+    suggestions.value = []
+    showSuggestions.value = false
+    searchLoading.value = false
+    return
+  }
+  const seq = ++searchSeq
+  searchLoading.value = true
+  try {
+    const data = await searchSite(kw, { pageSize: 8 })
+    if (seq !== searchSeq) return
+    suggestions.value = Array.isArray(data?.suggestions) ? data.suggestions : []
+    showSuggestions.value = true
+  } catch {
+    if (seq !== searchSeq) return
+    suggestions.value = []
+    showSuggestions.value = true
+  } finally {
+    if (seq === searchSeq) searchLoading.value = false
+  }
+}
+
+function onSearchInput() {
+  clearSearchTimer()
+  const kw = searchKeyword.value.trim()
+  if (!kw) {
+    suggestions.value = []
+    showSuggestions.value = false
+    searchLoading.value = false
+    return
+  }
+  showSuggestions.value = true
+  searchTimer = setTimeout(() => runSearch(kw), 220)
+}
+
 function goSearch() {
   const kw = searchKeyword.value.trim()
   if (!kw) return
+  clearSearchTimer()
+  showSuggestions.value = false
   showSearch.value = false
   mobileMenuOpen.value = false
-  router.push({ name: 'Products', query: { keyword: kw } })
+  router.push({ name: 'Search', query: { keyword: kw } })
 }
 
-function handleConsult() {
-  const url = props.siteConfig.online_consult_url
-  if (url) {
-    window.open(url, '_blank')
-  } else {
-    router.push('/contact')
-  }
+function goSuggestion(item) {
+  if (!item?.to) return
+  clearSearchTimer()
+  showSuggestions.value = false
+  showSearch.value = false
+  mobileMenuOpen.value = false
+  router.push(item.to)
 }
+
+function openInquiry() {
+  emit('open-inquiry')
+}
+
+watch(showSearch, (on) => {
+  if (!on) {
+    clearSearchTimer()
+    showSuggestions.value = false
+  }
+})
+
+onBeforeUnmount(() => {
+  clearSearchTimer()
+})
 </script>
 
 <template>
   <header class="header">
     <div class="container header-inner">
       <router-link to="/" class="logo" @click="mobileMenuOpen = false">
-        <div class="logo-icon">
-          <img v-if="siteConfig.brand_logo || siteConfig.site_logo" :src="siteConfig.brand_logo || siteConfig.site_logo" alt="logo" />
-          <svg v-else viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <img
+          v-if="siteConfig.brand_logo || siteConfig.site_logo"
+          class="logo-img"
+          :src="siteConfig.brand_logo || siteConfig.site_logo"
+          alt="品牌 Logo"
+        />
+        <div v-else class="logo-fallback">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="2" />
             <path d="M12 20h16M20 12v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             <circle cx="20" cy="20" r="4" fill="currentColor" />
           </svg>
-        </div>
-        <div class="logo-text">
-          <span class="logo-cn">{{ (siteConfig.brand_title || '诺元智合').slice(0, 8) }}</span>
-          <span class="logo-en">NUOYUAN BIOTECH</span>
+          <span>诺元智合</span>
         </div>
       </router-link>
 
@@ -103,19 +198,12 @@ function handleConsult() {
       </nav>
 
       <div class="actions">
-        <button class="icon-btn" title="搜索" @click="showSearch = !showSearch">
+        <button class="icon-btn" title="搜索" @click="toggleSearch">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
         </button>
-        <button class="btn btn-outline consult-btn" @click="handleConsult">在线咨询</button>
-        <button
-          v-if="showInquiryButton"
-          class="btn btn-primary"
-          @click="emit('open-inquiry')"
-        >
-          立即询价
-        </button>
+        <button class="btn btn-primary inquiry-btn" @click="openInquiry">立即询价</button>
         <button class="menu-toggle" @click="mobileMenuOpen = !mobileMenuOpen">
           <span /><span /><span />
         </button>
@@ -123,14 +211,42 @@ function handleConsult() {
     </div>
 
     <div v-if="showSearch" class="search-bar">
-      <div class="container search-inner">
-        <input
-          v-model="searchKeyword"
-          type="text"
-          placeholder="搜索产品、新闻..."
-          @keyup.enter="goSearch"
-        />
-        <button class="btn btn-primary" @click="goSearch">搜索</button>
+      <div class="container search-panel">
+        <div class="search-inner">
+          <input
+            ref="searchInputRef"
+            v-model="searchKeyword"
+            type="text"
+            placeholder="搜索产品、服务、内容板块、新闻..."
+            @input="onSearchInput"
+            @focus="onSearchInput"
+            @keyup.enter="goSearch"
+          />
+          <button class="btn btn-primary" @click="goSearch">搜索</button>
+        </div>
+
+        <div v-if="showSuggestions" class="suggest-panel">
+          <div v-if="searchLoading" class="suggest-status">正在搜索...</div>
+          <template v-else-if="groupedSuggestions.length">
+            <div v-for="group in groupedSuggestions" :key="group.type" class="suggest-group">
+              <div class="suggest-group-title">{{ group.label }}</div>
+              <button
+                v-for="item in group.items"
+                :key="`${item.type}-${item.id}`"
+                type="button"
+                class="suggest-item"
+                @click="goSuggestion(item)"
+              >
+                <span class="suggest-title">{{ item.title }}</span>
+                <span v-if="item.desc" class="suggest-desc">{{ item.desc }}</span>
+              </button>
+            </div>
+            <button type="button" class="suggest-more" @click="goSearch">
+              查看全部「{{ searchKeyword.trim() }}」相关结果
+            </button>
+          </template>
+          <div v-else class="suggest-status">未找到相关内容，可换个关键词试试</div>
+        </div>
       </div>
     </div>
   </header>
@@ -160,33 +276,33 @@ function handleConsult() {
   gap: 12px;
   flex-shrink: 0;
   color: var(--color-white);
+  min-width: 0;
 }
 
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  color: var(--color-accent);
-  overflow: hidden;
-  border-radius: 8px;
-}
-.logo-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.logo-cn {
+.logo-img {
   display: block;
+  width: auto;
+  height: auto;
+  max-height: 44px;
+  max-width: min(280px, 48vw);
+  object-fit: contain;
+  object-position: left center;
+  flex-shrink: 0;
+}
+
+.logo-fallback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-white);
   font-size: 18px;
   font-weight: 700;
-  line-height: 1.2;
 }
 
-.logo-en {
-  display: block;
-  font-size: 10px;
-  opacity: 0.75;
-  letter-spacing: 1px;
+.logo-fallback svg {
+  width: 36px;
+  height: 36px;
+  color: var(--color-accent);
 }
 
 .nav {
@@ -234,8 +350,8 @@ function handleConsult() {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.consult-btn {
-  padding: 8px 14px;
+.inquiry-btn {
+  padding: 8px 16px;
   font-size: 13px;
 }
 
@@ -264,8 +380,12 @@ function handleConsult() {
 
 .search-bar {
   background: var(--color-primary-dark);
-  padding: 12px 0;
+  padding: 12px 0 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-panel {
+  position: relative;
 }
 
 .search-inner {
@@ -282,11 +402,84 @@ function handleConsult() {
   outline: none;
 }
 
-@media (max-width: 1024px) {
-  .consult-btn {
-    display: none;
-  }
+.suggest-panel {
+  margin-top: 8px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  max-height: min(60vh, 420px);
+  overflow: auto;
+  padding: 8px 0;
+}
 
+.suggest-group + .suggest-group {
+  border-top: 1px solid #eef2f7;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.suggest-group-title {
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+
+.suggest-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.suggest-item:hover {
+  background: #f1f5f9;
+}
+
+.suggest-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.suggest-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.suggest-more {
+  width: 100%;
+  border: none;
+  border-top: 1px solid #eef2f7;
+  background: transparent;
+  padding: 12px 14px;
+  margin-top: 4px;
+  text-align: left;
+  color: #0b2d5c;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.suggest-more:hover {
+  background: #f8fafc;
+}
+
+.suggest-status {
+  padding: 16px 14px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+@media (max-width: 1024px) {
   .nav-item {
     padding: 8px 10px;
     font-size: 13px;

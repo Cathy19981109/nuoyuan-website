@@ -17,7 +17,7 @@ const {
   normalModules,
 } = useCatalogModules(pageModules, {
   bannerSystemKey: 'about_banner',
-  bannerModuleName: '关于我们Banner模块',
+  bannerModuleName: 'Banner模块',
 })
 
 const breadcrumbs = computed(() => [
@@ -49,27 +49,29 @@ onMounted(async () => {
     <section class="section">
       <div class="container about">
         <div v-if="loading" class="loading">加载中...</div>
-        <div v-else-if="page?.content" class="content" v-html="page.content" />
-        <div v-else class="default-content">
-          <h2>公司简介</h2>
-          <p>
-            诺元智合（NUOYUAN BIOTECH）是一家专注于基因编辑核心服务与科研实验试剂的高新技术企业。
-            我们致力于为生命科学研究机构、生物医药企业提供高品质的 RNA 合成、CRISPR/Cas9 技术服务、
-            基因载体构建及分子生物学、细胞培养等科研试剂产品。
-          </p>
-          <h2>我们的使命</h2>
-          <p>以技术创新驱动生命科学进步，为科研工作者提供可靠、高效的产品与服务。</p>
-          <h2>核心优势</h2>
-          <ul>
-            <li>超长链 RNA 合成能力，最高可达 266nt</li>
-            <li>CRISPR/Cas9 全套技术服务，编辑效率高、脱靶可控</li>
-            <li>严格质控体系，批次稳定性强</li>
-            <li>全程技术跟进，交付周期短</li>
-          </ul>
-        </div>
+        <template v-else-if="!normalModules.length">
+          <div v-if="page?.content" class="content" v-html="page.content" />
+          <div v-else class="default-content">
+            <h2>公司简介</h2>
+            <p>
+              诺元智合（NUOYUAN BIOTECH）是一家专注于基因编辑核心服务与科研实验试剂的高新技术企业。
+              我们致力于为生命科学研究机构、生物医药企业提供高品质的 RNA 合成、CRISPR/Cas9 技术服务、
+              基因载体构建及分子生物学、细胞培养等科研试剂产品。
+            </p>
+            <h2>我们的使命</h2>
+            <p>以技术创新驱动生命科学进步，为科研工作者提供可靠、高效的产品与服务。</p>
+            <h2>核心优势</h2>
+            <ul>
+              <li>超长链 RNA 合成能力，最高可达 266nt</li>
+              <li>CRISPR/Cas9 全套技术服务，编辑效率高、脱靶可控</li>
+              <li>严格质控体系，批次稳定性强</li>
+              <li>全程技术跟进，交付周期短</li>
+            </ul>
+          </div>
+        </template>
       </div>
       <div class="container">
-        <ModuleRenderer :modules="normalModules" />
+        <ModuleRenderer :modules="normalModules" :all-modules="pageModules" />
       </div>
     </section>
   </div>
