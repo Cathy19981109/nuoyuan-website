@@ -354,23 +354,115 @@ function buildTagFilters() {
 </template>
 
 <style scoped>
-.product-layout { display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
-.filter-panel { position: sticky; top: 90px; border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; background: #fff; max-height: calc(100vh - 120px); overflow: auto; }
+.product-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.filter-panel {
+  position: sticky;
+  top: 90px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+  background: #fff;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  min-width: 0;
+}
 .filter-panel h3 { margin-bottom: 10px; font-size: 15px; color: var(--color-primary); }
-.filter-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--color-text-light); cursor: pointer; }
-.filter-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.clear-btn { border: 1px solid #22c55e; color: #15803d; background: #f0fdf4; border-radius: 14px; padding: 4px 10px; cursor: pointer; }
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--color-text-light);
+  cursor: pointer;
+  min-width: 0;
+}
+.filter-item span:not(.count) {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+.filter-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; }
+.clear-btn { border: 1px solid #22c55e; color: #15803d; background: #f0fdf4; border-radius: 14px; padding: 4px 10px; cursor: pointer; flex-shrink: 0; }
 .filter-group { border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 10px; }
 .group-title { font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px; }
-.count { margin-left: auto; font-size: 12px; color: #64748b; }
-.products-main { min-height: 240px; }
+.count { margin-left: auto; font-size: 12px; color: #64748b; flex-shrink: 0; }
+.products-main { min-height: 240px; min-width: 0; max-width: 100%; overflow-x: hidden; }
 .search-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; }
-.search-right { display: flex; align-items: center; gap: 8px; width: min(520px, 100%); }
-.search-input { flex: 1; border: 1px solid #d1d5db; border-radius: 20px; padding: 9px 12px; }
-.search-btn { border: none; background: #65a30d; color: #fff; border-radius: 999px; width: 36px; height: 36px; cursor: pointer; }
+.search-right { display: flex; align-items: center; gap: 8px; width: min(520px, 100%); min-width: 0; }
+.search-input { flex: 1; min-width: 0; border: 1px solid #d1d5db; border-radius: 20px; padding: 9px 12px; }
+.search-btn { border: none; background: #65a30d; color: #fff; border-radius: 999px; width: 36px; height: 36px; cursor: pointer; flex-shrink: 0; }
 .pagination { margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #334155; font-size: 13px; }
 .page-size, .jump-input { border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 8px; }
 .jump-input { width: 82px; }
 .btn-lite { border: 1px solid #d1d5db; background: #fff; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
 .hint-line { color: #15803d; font-size: 12px; margin-top: 8px; }
+
+.products-main :deep(.card-grid) {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  .product-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .filter-panel {
+    position: static;
+    max-height: none;
+    width: 100%;
+  }
+
+  .search-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-bar h3 {
+    font-size: 18px;
+    line-height: 1.4;
+  }
+
+  .search-right {
+    width: 100%;
+  }
+
+  .search-input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .products-main :deep(.card-grid) {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 430px) {
+  .filter-panel {
+    padding: 14px;
+  }
+
+  .filter-item {
+    font-size: 14px;
+    min-height: 40px;
+  }
+
+  .pagination {
+    gap: 6px;
+  }
+
+  .btn-lite {
+    min-height: 36px;
+  }
+}
 </style>

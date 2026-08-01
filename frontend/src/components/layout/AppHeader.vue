@@ -93,6 +93,19 @@ function isActive(path) {
   return route.path.startsWith(path)
 }
 
+const currentNavLabel = computed(() => {
+  const hit = menuItems.value.find((item) => isActive(item.path))
+  if (hit?.name) return String(hit.name).slice(0, 4)
+  if (route.path.startsWith('/products')) return '产品中心'
+  if (route.path.startsWith('/services')) return '技术服务'
+  if (route.path.startsWith('/applications')) return '应用领域'
+  if (route.path.startsWith('/news')) return '新闻动态'
+  if (route.path.startsWith('/about')) return '关于我们'
+  if (route.path.startsWith('/contact')) return '联系我们'
+  if (route.path === '/' || route.path === '') return '首页'
+  return ''
+})
+
 async function toggleSearch() {
   showSearch.value = !showSearch.value
   mobileMenuOpen.value = false
@@ -203,6 +216,10 @@ onBeforeUnmount(() => {
           <span>诺元智合</span>
         </div>
       </router-link>
+
+      <div v-if="currentNavLabel" class="mobile-page-label" aria-live="polite">
+        {{ currentNavLabel }}
+      </div>
 
       <nav class="nav" :class="{ open: mobileMenuOpen }">
         <template v-for="item in menuItems" :key="item.id">
@@ -518,9 +535,33 @@ onBeforeUnmount(() => {
   }
 }
 
+.mobile-page-label {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .logo-img {
     max-height: 36px;
+    max-width: min(140px, 34vw);
+  }
+
+  .logo-fallback span {
+    display: none;
+  }
+
+  .mobile-page-label {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+    line-height: 1.2;
   }
 
   .nav {
@@ -548,6 +589,11 @@ onBeforeUnmount(() => {
     padding: 14px 12px;
     font-size: 16px;
     min-height: 48px;
+  }
+
+  .nav-item.active {
+    background: rgba(255, 255, 255, 0.22);
+    font-weight: 700;
   }
 
   .menu-toggle {

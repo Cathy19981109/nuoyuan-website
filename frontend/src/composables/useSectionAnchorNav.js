@@ -6,7 +6,9 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 export function useSectionAnchorNav(articleSections, options = {}) {
   const {
     idPrefix = 'section-module',
-    visibleTabs = 4,
+    visibleTabsDesktop = 4,
+    visibleTabsMobile = 2,
+    mobileBreakpoint = 768,
   } = options
 
   const activeSectionId = ref(null)
@@ -16,11 +18,17 @@ export function useSectionAnchorNav(articleSections, options = {}) {
   const canScrollLeft = ref(false)
   const canScrollRight = ref(false)
   const tabsViewportWidth = ref(null)
+  const visibleTabs = ref(visibleTabsDesktop)
 
   let ignoreScrollSpyUntil = 0
   let scrollSpyRaf = 0
 
-  const showNavArrows = computed(() => articleSections.value.length > visibleTabs)
+  const showNavArrows = computed(() => articleSections.value.length > visibleTabs.value)
+
+  function resolveVisibleTabs() {
+    if (typeof window === 'undefined') return visibleTabsDesktop
+    return window.innerWidth <= mobileBreakpoint ? visibleTabsMobile : visibleTabsDesktop
+  }
 
   function sectionDomId(row) {
     return `${idPrefix}-${row.id}`
@@ -58,23 +66,38 @@ export function useSectionAnchorNav(articleSections, options = {}) {
   }
 
   function syncTabsViewportWidth() {
+    visibleTabs.value = resolveVisibleTabs()
     const track = tabsTrackRef.value
     if (!track || !showNavArrows.value) {
       tabsViewportWidth.value = null
+      updateTabsScrollState()
       return
     }
     const tabs = [...track.querySelectorAll('.tab')]
-    if (tabs.length <= visibleTabs) {
+    const count = visibleTabs.value
+    if (tabs.length <= count) {
       tabsViewportWidth.value = null
+      updateTabsScrollState()
       return
     }
     const gap = 10
     let width = 0
-    for (let i = 0; i < visibleTabs; i += 1) {
+    for (let i = 0; i < count; i += 1) {
       width += tabs[i].offsetWidth
-      if (i < visibleTabs - 1) width += gap
+      if (i < count - 1) width += gap
     }
-    tabsViewportWidth.value = width
+
+    // 预留左右箭头空间，避免按键被挤出屏幕
+    const wrap = track.parentElement
+    if (wrap) {
+      const arrows = [...wrap.querySelectorAll('.nav-arrow')]
+      const arrowSpace = arrows.reduce((sum, btn) => sum + btn.offsetWidth, 0)
+      const gapSpace = 6 * Math.max(1, arrows.length + 1)
+      const available = wrap.clientWidth - arrowSpace - gapSpace
+      if (available > 80) width = Math.min(width, available)
+    }
+
+    tabsViewportWidth.value = Math.max(Math.round(width), 100)
     updateTabsScrollState()
   }
 
@@ -190,26 +213,34 @@ export function useSectionAnchorNav(articleSections, options = {}) {
     })
   }
 
+  function onResize() {
+    syncTabsViewportWidth()
+    updateActiveFromScroll()
+  }
+
   function bind() {
-    nextTick(() => {
+    nextTick(async () => {
+      syncTabsViewportWidth()
+      // 箭头渲染后需再量一次，避免左右键被挤出视口
+      await nextTick()
       syncTabsViewportWidth()
       updateActiveFromScroll()
       tabsTrackRef.value?.addEventListener('scroll', updateTabsScrollState, { passive: true })
     })
     window.addEventListener('scroll', onWindowScroll, { passive: true })
-    window.addEventListener('resize', onWindowScroll)
-    window.addEventListener('resize', syncTabsViewportWidth)
+    window.addEventListener('resize', onResize)
   }
 
   function unbind() {
     window.removeEventListener('scroll', onWindowScroll)
-    window.removeEventListener('resize', onWindowScroll)
-    window.removeEventListener('resize', syncTabsViewportWidth)
+    window.removeEventListener('resize', onResize)
     tabsTrackRef.value?.removeEventListener('scroll', updateTabsScrollState)
     if (scrollSpyRaf) window.cancelAnimationFrame(scrollSpyRaf)
   }
 
   watch(articleSections, async () => {
+    await nextTick()
+    syncTabsViewportWidth()
     await nextTick()
     syncTabsViewportWidth()
     updateActiveFromScroll()
@@ -227,6 +258,7 @@ export function useSectionAnchorNav(articleSections, options = {}) {
     canScrollRight,
     tabsViewportWidth,
     showNavArrows,
+    visibleTabs,
     sectionDomId,
     scrollToAll,
     scrollToSection,
