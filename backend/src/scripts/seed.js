@@ -106,7 +106,27 @@ async function seedDefaultPages() {
 async function seedDefaultPageModules() {
   const templateRows = [
     { page_key: 'home', module_name: '首页宽幅图', module_template: 'full_width_single_image', sort: 1, image_list_json: JSON.stringify([{ name: 'banner', url: '/uploads/images/demo-home-banner.jpg' }]) },
-    { page_key: 'home', module_name: '首页图文介绍', module_template: 'image_text_split', sort: 2, main_title: '核心服务能力', body_text: '可在后台修改这段介绍文字，支持图文布局。', layout_mode: 'left', image_list_json: JSON.stringify([{ name: 'intro', url: '/uploads/images/demo-home-intro.jpg' }]) },
+    {
+      page_key: 'home',
+      module_name: '产品/服务卡片模块',
+      module_template: 'product_service_cards',
+      sort: 2,
+      main_title: '基因编辑核心服务',
+      body_text: '核心主打业务，覆盖 RNA 合成、CRISPR/Cas9 全套技术服务、基因与载体构建',
+      layout_mode: 'bottom',
+      image_list_json: JSON.stringify([]),
+      card_items_json: JSON.stringify([]),
+      extra: {
+        system_key: 'home_catalog_cards',
+        show_search: true,
+        default_type: 'all',
+        source_mode: 'hot',
+        more_button_text: '查看全部产品',
+        more_link: '/products',
+        page_size: 24,
+      },
+    },
+    { page_key: 'home', module_name: '首页图文介绍', module_template: 'image_text_split', sort: 3, main_title: '核心服务能力', body_text: '可在后台修改这段介绍文字，支持图文布局。', layout_mode: 'left', image_list_json: JSON.stringify([{ name: 'intro', url: '/uploads/images/demo-home-intro.jpg' }]) },
     { page_key: 'products', module_name: '产品页轮播', module_template: 'multi_image_carousel', sort: 1, image_list_json: JSON.stringify([{ name: 'p1', url: '/uploads/images/demo-products-1.jpg' }]) },
     { page_key: 'services', module_name: '技术服务视频', module_template: 'single_video_module', sort: 1, main_title: '技术服务介绍', body_text: '上传视频后前台自动渲染。', video_url: '/uploads/videos/demo-services.mp4' },
     { page_key: 'news', module_name: '新闻跳转卡片', module_template: 'image_jump_button', sort: 1, jump_type: 'page', link_url: '/news', main_title: '新闻动态', body_text: '了解最新行业资讯与公司动态', image_list_json: JSON.stringify([]), extra: { button_text: '查看更多新闻' } },

@@ -193,6 +193,22 @@
                 <template v-else-if="m.module_template === 'single_video_module'">
                   <div class="preview-video">视频模块：{{ m.main_title || m.module_name }}</div>
                 </template>
+                <template v-else-if="m.module_template === 'product_service_cards'">
+                  <div class="preview-catalog-cards">
+                    <h5>{{ m.main_title || '基因编辑核心服务' }}</h5>
+                    <p>{{ m.body_text || '核心主打业务…' }}</p>
+                    <div class="preview-catalog-meta">
+                      <span>{{ m.extra_json?.show_search === false ? '无搜索栏' : '含搜索栏' }}</span>
+                      <span>·</span>
+                      <span>{{ m.extra_json?.source_mode === 'manual' ? `手动 ${Array.isArray(m.card_items_json) ? m.card_items_json.length : 0} 张卡片` : '热门自动' }}</span>
+                      <span>·</span>
+                      <span>{{ m.extra_json?.more_button_text || '查看全部产品' }}</span>
+                    </div>
+                    <div class="preview-catalog-strip">
+                      <div v-for="n in 3" :key="n" class="preview-catalog-chip">卡片 {{ n }}</div>
+                    </div>
+                  </div>
+                </template>
                 <template v-else>
                   <div
                     class="preview-card-inner preview-image-text"
@@ -248,7 +264,7 @@
               <select
                 v-model="moduleForm.module_template"
                 class="form-control"
-                :disabled="isSubNavGroupForm && !!editingModule"
+                :disabled="(isSubNavGroupForm && !!editingModule) || (isCatalogCardsForm && !!editingModule?.extra_json?.system_key)"
                 @change="ensureValidLayoutMode"
               >
                 <option v-for="t in availableTemplates" :key="t.code" :value="t.code">{{ t.name }}</option>
@@ -300,8 +316,95 @@
           </div>
           <div v-if="showBody" class="form-group">
             <label><span v-if="bodyRequired" class="required">*</span>{{ isBannerForm ? '前台文案' : '正文内容' }}</label>
-            <textarea v-model="moduleForm.body_text" class="form-control" rows="4" :placeholder="isBannerForm ? '前台 Banner 说明文字' : (['single_video_module','image_jump_button'].includes(currentTemplate.code) ? '选填' : '')" />
+            <textarea v-model="moduleForm.body_text" class="form-control" rows="4" :placeholder="isBannerForm ? '前台 Banner 说明文字' : (['single_video_module','image_jump_button','product_service_cards'].includes(currentTemplate.code) ? (currentTemplate.code === 'product_service_cards' ? '副标题，选填' : '选填') : '')" />
           </div>
+
+          <template v-if="isCatalogCardsForm">
+            <div class="form-row">
+              <div class="form-group">
+                <label>显示搜索栏</label>
+                <select v-model="catalogCardsShowSearch" class="form-control">
+                  <option :value="true">显示（分类筛选 + 模糊搜索）</option>
+                  <option :value="false">隐藏</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>默认分类</label>
+                <select v-model="moduleForm.extra_json.default_type" class="form-control">
+                  <option value="all">全部</option>
+                  <option value="product">产品</option>
+                  <option value="service">服务</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label><span class="required">*</span>卡片数据来源</label>
+              <select v-model="moduleForm.extra_json.source_mode" class="form-control" @change="onCatalogSourceModeChange">
+                <option value="hot">热门自动（拉取标为「热门」的产品/服务）</option>
+                <option value="manual">手动勾选（按下方顺序展示）</option>
+              </select>
+              <div class="hint">卡片封面、标题、目录号、规格下拉、询价均来自产品/服务库，无需在此重复填写文案。</div>
+            </div>
+            <div v-if="moduleForm.extra_json.source_mode === 'manual'" class="form-group catalog-picker">
+              <label><span class="required">*</span>选择产品/服务卡片</label>
+              <div class="catalog-combo">
+                <input
+                  v-model="catalogQuery"
+                  class="form-control"
+                  placeholder="输入名称或编号模糊搜索后勾选"
+                  autocomplete="off"
+                  @focus="openCatalogDropdown"
+                  @input="catalogOpen = true"
+                />
+                <div v-if="catalogOpen" class="catalog-dropdown catalog-dropdown-multi">
+                  <button
+                    v-for="opt in filteredCatalogOptions"
+                    :key="opt.key"
+                    type="button"
+                    class="catalog-option"
+                    :class="{ active: isCardItemSelected(opt) }"
+                    @mousedown.prevent="toggleCardItem(opt)"
+                  >
+                    <span class="catalog-kind">{{ opt.kind === 'service' ? '服务' : '产品' }}</span>
+                    <span class="catalog-name">{{ opt.name }}</span>
+                    <span class="catalog-code">{{ opt.code }}</span>
+                    <span class="catalog-check">{{ isCardItemSelected(opt) ? '✓' : '+' }}</span>
+                  </button>
+                  <div v-if="!filteredCatalogOptions.length" class="catalog-empty">无匹配结果</div>
+                </div>
+              </div>
+              <div v-if="selectedCardItems.length" class="card-pick-list">
+                <div
+                  v-for="(item, idx) in selectedCardItems"
+                  :key="`${item.kind}-${item.id}`"
+                  class="card-pick-row"
+                >
+                  <span class="drag-handle">☰</span>
+                  <span class="catalog-kind">{{ item.kind === 'service' ? '服务' : '产品' }}</span>
+                  <span class="catalog-name">{{ item.label || item.name || `${item.kind}-${item.id}` }}</span>
+                  <button type="button" class="btn btn-secondary btn-sm" :disabled="idx === 0" @click="moveCardItem(idx, -1)">上移</button>
+                  <button type="button" class="btn btn-secondary btn-sm" :disabled="idx >= selectedCardItems.length - 1" @click="moveCardItem(idx, 1)">下移</button>
+                  <button type="button" class="btn btn-danger btn-sm" @click="removeCardItem(idx)">移除</button>
+                </div>
+              </div>
+              <div v-else class="hint">尚未勾选卡片</div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>底部按钮文字</label>
+                <input v-model="moduleForm.extra_json.more_button_text" class="form-control" maxlength="40" placeholder="查看全部产品" />
+              </div>
+              <div class="form-group">
+                <label>底部按钮链接</label>
+                <input v-model="moduleForm.extra_json.more_link" class="form-control" placeholder="/products 或 /services" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>展示数量上限</label>
+              <input v-model.number="moduleForm.extra_json.page_size" class="form-control" type="number" min="3" max="48" />
+              <div class="hint">热门自动模式下拉取条数；建议 6～24</div>
+            </div>
+          </template>
 
           <template v-if="isContactInfoForm">
             <div class="form-group">
@@ -492,6 +595,7 @@ const moduleForm = ref({
   body_text: '',
   layout_mode: 'top',
   image_list_json: [],
+  card_items_json: [],
   video_url: '',
   jump_type: 'page',
   link_url: '',
@@ -512,10 +616,98 @@ const jumpButtonText = computed({
   },
 })
 
+const catalogCardsShowSearch = computed({
+  get() {
+    ensureCatalogCardsExtra()
+    return moduleForm.value.extra_json.show_search !== false
+  },
+  set(v) {
+    ensureCatalogCardsExtra()
+    moduleForm.value.extra_json.show_search = !!v
+  },
+})
+
+const selectedCardItems = computed(() => {
+  const rows = Array.isArray(moduleForm.value.card_items_json) ? moduleForm.value.card_items_json : []
+  return rows.map((row) => {
+    const kind = row.kind === 'service' ? 'service' : 'product'
+    const id = Number(row.id || 0)
+    const opt = (catalogOptions.value || []).find((o) => o.kind === kind && o.id === id)
+    return {
+      kind,
+      id,
+      name: opt?.name || row.name || '',
+      code: opt?.code || row.code || '',
+      label: opt?.label || row.label || `${kind}-${id}`,
+    }
+  }).filter((row) => row.id > 0)
+})
+
 function ensureJumpExtra() {
   if (!moduleForm.value.extra_json || typeof moduleForm.value.extra_json !== 'object') {
     moduleForm.value.extra_json = { button_text: '' }
   }
+}
+
+function ensureCatalogCardsExtra() {
+  if (!moduleForm.value.extra_json || typeof moduleForm.value.extra_json !== 'object') {
+    moduleForm.value.extra_json = {}
+  }
+  const ex = moduleForm.value.extra_json
+  if (ex.show_search === undefined) ex.show_search = true
+  if (!ex.default_type) ex.default_type = 'all'
+  if (!ex.source_mode) ex.source_mode = 'hot'
+  if (!ex.more_button_text) ex.more_button_text = '查看全部产品'
+  if (!ex.more_link) ex.more_link = '/products'
+  if (!ex.page_size) ex.page_size = 24
+  if (!Array.isArray(moduleForm.value.card_items_json)) {
+    moduleForm.value.card_items_json = []
+  }
+}
+
+function onCatalogSourceModeChange() {
+  ensureCatalogCardsExtra()
+  if (moduleForm.value.extra_json.source_mode === 'manual') {
+    loadCatalogOptions()
+    catalogOpen.value = true
+  }
+}
+
+function isCardItemSelected(opt) {
+  const rows = Array.isArray(moduleForm.value.card_items_json) ? moduleForm.value.card_items_json : []
+  return rows.some((row) => row.kind === opt.kind && Number(row.id) === Number(opt.id))
+}
+
+function toggleCardItem(opt) {
+  ensureCatalogCardsExtra()
+  const rows = Array.isArray(moduleForm.value.card_items_json) ? [...moduleForm.value.card_items_json] : []
+  const idx = rows.findIndex((row) => row.kind === opt.kind && Number(row.id) === Number(opt.id))
+  if (idx >= 0) rows.splice(idx, 1)
+  else {
+    rows.push({
+      kind: opt.kind,
+      id: opt.id,
+      name: opt.name,
+      code: opt.code,
+      label: opt.label,
+    })
+  }
+  moduleForm.value.card_items_json = rows
+}
+
+function removeCardItem(idx) {
+  const rows = Array.isArray(moduleForm.value.card_items_json) ? [...moduleForm.value.card_items_json] : []
+  rows.splice(idx, 1)
+  moduleForm.value.card_items_json = rows
+}
+
+function moveCardItem(idx, delta) {
+  const rows = Array.isArray(moduleForm.value.card_items_json) ? [...moduleForm.value.card_items_json] : []
+  const next = idx + delta
+  if (next < 0 || next >= rows.length) return
+  const [row] = rows.splice(idx, 1)
+  rows.splice(next, 0, row)
+  moduleForm.value.card_items_json = rows
 }
 
 function normalizeJumpType(raw) {
@@ -670,7 +862,7 @@ const showTitle = computed(() => {
   if (isContactInfoForm.value) return true
   if (isBannerForm.value) return true
   if (currentTemplate.value.code === 'multi_image_carousel') return false
-  return ['image_text_split', 'single_video_module', 'image_jump_button'].includes(currentTemplate.value.code)
+  return ['image_text_split', 'single_video_module', 'image_jump_button', 'product_service_cards'].includes(currentTemplate.value.code)
 })
 const showBody = computed(() => {
   if (isSubNavGroupForm.value) return false
@@ -678,15 +870,19 @@ const showBody = computed(() => {
   if (isBannerForm.value) return true
   if (currentTemplate.value.code === 'multi_image_carousel') return false
   if (isChildForm.value) return true
-  return ['image_text_split', 'single_video_module', 'image_jump_button'].includes(currentTemplate.value.code)
+  return ['image_text_split', 'single_video_module', 'image_jump_button', 'product_service_cards'].includes(currentTemplate.value.code)
 })
 const bodyRequired = computed(() => {
   if (!showBody.value) return false
-  // 视频模块 / 图文跳转：正文可选
+  // 视频模块 / 图文跳转 / 产品服务卡片：正文（副标题）可选
   if (currentTemplate.value.code === 'single_video_module') return false
   if (currentTemplate.value.code === 'image_jump_button') return false
+  if (currentTemplate.value.code === 'product_service_cards') return false
   return true
 })
+const isCatalogCardsForm = computed(() =>
+  isCatalogCardsModule(editingModule.value) || isCatalogCardsModule(moduleForm.value) || currentTemplate.value.code === 'product_service_cards'
+)
 const showImage = computed(() => {
   if (isSubNavGroupForm.value) return false
   if (isContactInfoForm.value) return false
@@ -811,6 +1007,9 @@ const templateRuleText = computed(() => {
   if (currentTemplate.value.code === 'multi_image_carousel') {
     return '多图轮播：仅图片无文字；所有图片须为同一长方形尺寸（16:9，建议 1920×720），至少 2 张'
   }
+  if (currentTemplate.value.code === 'product_service_cards') {
+    return '产品/服务卡片：标题与副标题可改；卡片内容来自产品/服务库（封面、目录号、规格、询价）；可选热门自动或手动勾选排序'
+  }
   if (currentTemplate.value.code === 'image_text_split') {
     const mode = moduleForm.value.layout_mode
     if (mode === 'top' || mode === 'bottom') return '图上/图下：16:9 1920x720，<=50MB'
@@ -821,6 +1020,9 @@ const templateRuleText = computed(() => {
 
 const formIsSystemOrBanner = computed(() => {
   if (isContactInfoForm.value) return true
+  if (isCatalogCardsForm.value && String(moduleForm.value?.extra_json?.system_key || '') === 'home_catalog_cards') {
+    return true
+  }
   if (editingModule.value && (isEditLockedModule(editingModule.value) || isFixedTopModule(editingModule.value))) {
     return true
   }
@@ -869,6 +1071,12 @@ function isContactInfoModule(row) {
   return String(row?.extra_json?.system_key || '') === 'contact_info_block'
 }
 
+function isCatalogCardsModule(row) {
+  if (!row) return false
+  if (row.module_template === 'product_service_cards') return true
+  return String(row?.extra_json?.system_key || '') === 'home_catalog_cards'
+}
+
 function isListBlockModule(row) {
   return String(row?.extra_json?.system_key || '').endsWith('_list_block')
 }
@@ -893,6 +1101,9 @@ function canonicalSystemModuleName(row) {
   if (key.endsWith('_banner')) return 'Banner模块'
   if (key.endsWith('_list_block')) return '列表模块'
   if (key === 'contact_info_block') return '联系方式模块'
+  if (key === 'home_catalog_cards' || row?.module_template === 'product_service_cards') {
+    return '产品/服务卡片模块'
+  }
   return ''
 }
 
@@ -1011,6 +1222,24 @@ async function loadModules() {
         extra_json: { system_key: 'home_banner', subtitle_en: 'NUOYUAN BIOTECH' },
       },
       {
+        module_name: '产品/服务卡片模块',
+        module_template: 'product_service_cards',
+        main_title: '基因编辑核心服务',
+        body_text: '核心主打业务，覆盖 RNA 合成、CRISPR/Cas9 全套技术服务、基因与载体构建',
+        layout_mode: 'bottom',
+        image_list_json: [],
+        card_items_json: [],
+        extra_json: {
+          system_key: 'home_catalog_cards',
+          show_search: true,
+          default_type: 'all',
+          source_mode: 'hot',
+          more_button_text: '查看全部产品',
+          more_link: '/products',
+          page_size: 24,
+        },
+      },
+      {
         module_name: '核心优势',
         module_template: 'full_width_single_image',
         main_title: '核心优势',
@@ -1020,17 +1249,6 @@ async function loadModules() {
           { name: 'home-advantages-alt', url: '/uploads/images/home-advantages-alt.png' },
         ],
         extra_json: { system_key: 'home_advantages' },
-      },
-      {
-        module_name: '新闻动态',
-        module_template: 'image_jump_button',
-        main_title: '新闻动态',
-        body_text: '了解最新行业资讯与公司动态',
-        layout_mode: 'bottom',
-        jump_type: 'page',
-        link_url: '/news',
-        image_list_json: [],
-        extra_json: { system_key: 'home_news_jump', button_text: '查看更多新闻' },
       },
       {
         module_name: '发现产品与服务',
@@ -1641,6 +1859,7 @@ function openModuleDialog(item = null, options = {}) {
     moduleForm.value = {
       ...item,
       image_list_json: Array.isArray(item.image_list_json) ? [...item.image_list_json] : [],
+      card_items_json: Array.isArray(item.card_items_json) ? [...item.card_items_json] : [],
       layout_mode: item.layout_mode || 'top',
       jump_type: jumpType,
       jump_product_code: item.jump_product_code || '',
@@ -1651,6 +1870,13 @@ function openModuleDialog(item = null, options = {}) {
     if (item.module_template === 'image_jump_button' && jumpType === 'catalog') {
       catalogQuery.value = String(extra.catalog_label || item.link_url || '')
       loadCatalogOptions()
+    }
+    if (isCatalogCardsModule(item)) {
+      ensureCatalogCardsExtra()
+      loadCatalogOptions()
+      if (!String(moduleForm.value.main_title || '').trim()) {
+        moduleForm.value.main_title = '基因编辑核心服务'
+      }
     }
     if (isBannerModule(item) && pageKey.value === 'home') {
       if (!String(moduleForm.value.main_title || '').trim()) moduleForm.value.main_title = '诺元智合'
@@ -1669,6 +1895,7 @@ function openModuleDialog(item = null, options = {}) {
       body_text: '',
       layout_mode: 'bottom',
       image_list_json: [{ name: '', url: '' }],
+      card_items_json: [],
       video_url: '',
       jump_type: 'page',
       link_url: '',
@@ -1688,6 +1915,7 @@ function openModuleDialog(item = null, options = {}) {
       body_text: '',
       layout_mode: 'top',
       image_list_json: [],
+      card_items_json: [],
       video_url: '',
       jump_type: 'page',
       link_url: '',
@@ -1845,6 +2073,24 @@ async function saveModule() {
       if (!hasTarget) return alert('请选择产品或服务')
     }
   }
+  if (currentTemplate.value.code === 'product_service_cards') {
+    ensureCatalogCardsExtra()
+    if (!String(moduleForm.value.main_title || '').trim()) {
+      return alert('请填写模块标题')
+    }
+    if (moduleForm.value.extra_json.source_mode === 'manual') {
+      const cards = Array.isArray(moduleForm.value.card_items_json) ? moduleForm.value.card_items_json : []
+      if (!cards.length) return alert('请至少勾选一张产品/服务卡片')
+    }
+    moduleForm.value.module_template = 'product_service_cards'
+    moduleForm.value.image_list_json = []
+    if (!String(moduleForm.value.extra_json.more_button_text || '').trim()) {
+      moduleForm.value.extra_json.more_button_text = '查看全部产品'
+    }
+    if (!String(moduleForm.value.extra_json.more_link || '').trim()) {
+      moduleForm.value.extra_json.more_link = '/products'
+    }
+  }
   if (isChild || (SECTION_PAGES.includes(pageKey.value) && moduleForm.value.module_template === 'image_text_split')) {
     moduleForm.value.layout_mode = normalizeNewsLayoutMode(moduleForm.value.layout_mode)
   } else if (moduleForm.value.module_template === 'image_text_split') {
@@ -1865,9 +2111,49 @@ async function saveModule() {
       image_list_json: Array.isArray(moduleForm.value.image_list_json)
         ? moduleForm.value.image_list_json.filter((x) => x?.url)
         : [],
+      card_items_json: Array.isArray(moduleForm.value.card_items_json)
+        ? moduleForm.value.card_items_json
+        : [],
     }
     if (isCarouselOnlyForm.value) {
       payload.body_text = ''
+    }
+    if (currentTemplate.value.code === 'product_service_cards') {
+      ensureCatalogCardsExtra()
+      payload.module_template = 'product_service_cards'
+      payload.image_list_json = []
+      payload.card_items_json = (payload.card_items_json || [])
+        .map((row) => ({
+          kind: row.kind === 'service' ? 'service' : 'product',
+          id: Number(row.id || 0),
+          name: String(row.name || '').trim(),
+          code: String(row.code || '').trim(),
+          label: String(row.label || '').trim(),
+        }))
+        .filter((row) => row.id > 0)
+      if (payload.extra_json?.source_mode !== 'manual') {
+        // keep selected list for later switch, but hot mode doesn't require it
+      }
+      const systemKey = String(
+        editingModule.value?.extra_json?.system_key
+        || moduleForm.value.extra_json?.system_key
+        || ''
+      )
+      payload.extra_json = {
+        ...(moduleForm.value.extra_json || {}),
+        show_search: moduleForm.value.extra_json?.show_search !== false,
+        default_type: ['product', 'service'].includes(moduleForm.value.extra_json?.default_type)
+          ? moduleForm.value.extra_json.default_type
+          : 'all',
+        source_mode: moduleForm.value.extra_json?.source_mode === 'manual' ? 'manual' : 'hot',
+        more_button_text: String(moduleForm.value.extra_json?.more_button_text || '').trim() || '查看全部产品',
+        more_link: String(moduleForm.value.extra_json?.more_link || '').trim() || '/products',
+        page_size: Math.min(48, Math.max(3, Number(moduleForm.value.extra_json?.page_size || 24) || 24)),
+      }
+      if (systemKey) payload.extra_json.system_key = systemKey
+      if (systemKey === 'home_catalog_cards') {
+        payload.module_name = '产品/服务卡片模块'
+      }
     }
     if (isContactInfoForm.value) {
       const info = contactInfoFromExtra(moduleForm.value.extra_json || {})
@@ -2043,6 +2329,17 @@ watch(
       if (!String(moduleForm.value.extra_json.button_text || '').trim()) {
         moduleForm.value.extra_json.button_text = '查看详情'
       }
+    }
+    if (code === 'product_service_cards') {
+      ensureCatalogCardsExtra()
+      moduleForm.value.image_list_json = []
+      if (!String(moduleForm.value.main_title || '').trim()) {
+        moduleForm.value.main_title = '基因编辑核心服务'
+      }
+      if (!String(moduleForm.value.body_text || '').trim()) {
+        moduleForm.value.body_text = '核心主打业务，覆盖 RNA 合成、CRISPR/Cas9 全套技术服务、基因与载体构建'
+      }
+      loadCatalogOptions()
     }
   }
 )
@@ -2337,7 +2634,8 @@ watch(
   -webkit-line-clamp: 1 !important;
 }
 .preview-video,
-.preview-list-placeholder {
+.preview-list-placeholder,
+.preview-catalog-cards {
   border: 1px dashed #cbd5e1;
   border-radius: 8px;
   padding: 18px;
@@ -2352,6 +2650,47 @@ watch(
   border-color: #a7f3d0;
   background: #f0fdf4;
   color: #15803d;
+}
+.preview-catalog-cards {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1e40af;
+  width: 100%;
+}
+.preview-catalog-cards h5 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.preview-catalog-cards p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+.preview-catalog-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+.preview-catalog-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
+.preview-catalog-chip {
+  border: 1px solid #bfdbfe;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 12px;
+  color: #2563eb;
 }
 .preview-list-placeholder h5 {
   margin: 0;
@@ -2634,7 +2973,7 @@ watch(
 .catalog-option {
   width: 100%;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 8px;
   align-items: center;
   padding: 9px 12px;
@@ -2648,6 +2987,32 @@ watch(
 .catalog-option:hover,
 .catalog-option.active {
   background: #eff6ff;
+}
+.catalog-check {
+  font-size: 12px;
+  color: #16a34a;
+  font-weight: 700;
+  min-width: 14px;
+  text-align: center;
+}
+.card-pick-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.card-pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+.card-pick-row .catalog-name {
+  flex: 1;
+  min-width: 120px;
 }
 .catalog-kind {
   font-size: 11px;

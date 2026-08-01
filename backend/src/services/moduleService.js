@@ -64,6 +64,11 @@ function getTemplatesByPage(pageKey) {
     { code: 'multi_image_carousel', name: '多图轮播模块', imageRule: '仅图片、无文字；须统一长方形 16:9（建议 1920x720），png/jpg/webp，<=50MB，至少 2 张' },
     { code: 'single_video_module', name: '视频模块', imageRule: '16:9，mp4，<=1GB（仅视频）' },
     { code: 'image_jump_button', name: '图文跳转按钮模块', imageRule: '配图建议16:9 1920x720，png/jpg/webp，<=50MB' },
+    {
+      code: 'product_service_cards',
+      name: '产品/服务卡片模块',
+      imageRule: '卡片封面取自所选产品/服务主图；支持热门自动或手动勾选，前台为横向卡片轮播',
+    },
   ];
   return common;
 }

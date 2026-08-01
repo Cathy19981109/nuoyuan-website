@@ -17,12 +17,22 @@ const pageModules = ref([])
 const {
   bannerModule,
   bannerImage,
-  normalModules,
+  normalModules: baseNormalModules,
 } = useCatalogModules(pageModules, {
   bannerSystemKey: 'home_banner',
   bannerModuleName: 'Banner模块',
-  excludeSystemKeys: ['home_advantages', 'home_news_jump'],
+  excludeSystemKeys: ['home_advantages', 'home_catalog_cards'],
 })
+
+const catalogModule = computed(() =>
+  pageModules.value.find((m) => String(m?.extra_json?.system_key || '') === 'home_catalog_cards')
+  || pageModules.value.find((m) => m.module_template === 'product_service_cards')
+  || null
+)
+
+const normalModules = computed(() =>
+  (baseNormalModules.value || []).filter((m) => m.module_template !== 'product_service_cards')
+)
 
 const advantageModule = computed(() =>
   pageModules.value.find((m) => String(m?.extra_json?.system_key || '') === 'home_advantages')
@@ -41,12 +51,6 @@ const advantageImages = computed(() => {
 })
 
 const advantageImage = computed(() => advantageImages.value[0] || '')
-
-const newsJumpModules = computed(() => {
-  const row = pageModules.value.find((m) => String(m?.extra_json?.system_key || '') === 'home_news_jump')
-    || pageModules.value.find((m) => m.module_template === 'image_jump_button' && String(m.main_title || m.module_name || '').includes('新闻'))
-  return row ? [row] : []
-})
 
 const heroTitle = computed(() => String(bannerModule.value?.main_title || '').trim() || '诺元智合')
 const heroEn = computed(() => {
@@ -92,7 +96,16 @@ onMounted(async () => {
       </div>
     </section>
 
-    <HomeCatalogModule @open-inquiry="emit('open-inquiry', $event)" />
+    <HomeCatalogModule
+      v-if="catalogModule"
+      :module="catalogModule"
+      @open-inquiry="emit('open-inquiry', $event)"
+    />
+    <!-- 兼容：库中尚无该模块时仍展示默认热门卡片，避免首页空白 -->
+    <HomeCatalogModule
+      v-else
+      @open-inquiry="emit('open-inquiry', $event)"
+    />
 
     <section v-if="advantageImage" class="section advantages">
       <div class="container">
@@ -103,9 +116,6 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-if="newsJumpModules.length" class="section news-jump-section">
-      <ModuleRenderer :modules="newsJumpModules" :all-modules="pageModules" content-align="center" />
-    </section>
     <ModuleRenderer :modules="normalModules" :all-modules="pageModules" content-align="center" />
   </div>
 </template>
@@ -180,10 +190,6 @@ onMounted(async () => {
   max-height: min(56vw, 720px);
   object-fit: cover;
   object-position: center;
-}
-
-.news-jump-section {
-  background: var(--color-bg);
 }
 
 @media (max-width: 768px) {

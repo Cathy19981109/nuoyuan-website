@@ -1,8 +1,12 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { getProducts, getServices } from '@/api'
+import { getProductById, getProducts, getServiceById, getServices } from '@/api'
 import ProductCard from '@/components/ProductCard.vue'
+
+const props = defineProps({
+  module: { type: Object, default: null },
+})
 
 const emit = defineEmits(['open-inquiry'])
 
@@ -22,6 +26,47 @@ const typeOptions = [
   { value: 'service', label: '服务' },
 ]
 
+const extra = computed(() =>
+  (props.module?.extra_json && typeof props.module.extra_json === 'object')
+    ? props.module.extra_json
+    : {}
+)
+
+const sectionTitle = computed(() =>
+  String(props.module?.main_title || '').trim() || '基因编辑核心服务'
+)
+
+const sectionSubtitle = computed(() =>
+  String(props.module?.body_text || '').trim()
+  || '核心主打业务，覆盖 RNA 合成、CRISPR/Cas9 全套技术服务、基因与载体构建'
+)
+
+const showSearch = computed(() => extra.value.show_search !== false)
+
+const sourceMode = computed(() =>
+  extra.value.source_mode === 'manual' ? 'manual' : 'hot'
+)
+
+const pageSize = computed(() =>
+  Math.min(48, Math.max(3, Number(extra.value.page_size || 24) || 24))
+)
+
+const manualItems = computed(() => {
+  const rows = Array.isArray(props.module?.card_items_json) ? props.module.card_items_json : []
+  return rows
+    .map((row) => ({
+      kind: row.kind === 'service' ? 'service' : 'product',
+      id: Number(row.id || 0),
+    }))
+    .filter((row) => row.id > 0)
+})
+
+const moreLink = computed(() => {
+  const to = String(extra.value.more_link || '').trim() || '/products'
+  const label = String(extra.value.more_button_text || '').trim() || '查看全部产品'
+  return { to, label }
+})
+
 const items = computed(() => {
   const mapProduct = (row) => ({
     ...row,
@@ -35,6 +80,21 @@ const items = computed(() => {
     _detailPath: `/services/${row.id}`,
   })
 
+  if (sourceMode.value === 'manual') {
+    const productMap = new Map(products.value.map((row) => [Number(row.id), row]))
+    const serviceMap = new Map(services.value.map((row) => [Number(row.id), row]))
+    return manualItems.value
+      .map((ref) => {
+        if (ref.kind === 'service') {
+          const row = serviceMap.get(ref.id)
+          return row ? mapService(row) : null
+        }
+        const row = productMap.get(ref.id)
+        return row ? mapProduct(row) : null
+      })
+      .filter(Boolean)
+  }
+
   if (catalogType.value === 'product') return products.value.map(mapProduct)
   if (catalogType.value === 'service') return services.value.map(mapService)
   return [
@@ -46,26 +106,42 @@ const items = computed(() => {
 const maxPage = computed(() => Math.max(0, Math.ceil(items.value.length / visibleCount) - 1))
 const showArrows = computed(() => items.value.length > visibleCount)
 
-const moreLink = computed(() => {
-  if (catalogType.value === 'service') return { to: '/services', label: '查看全部服务' }
-  if (catalogType.value === 'product') return { to: '/products', label: '查看全部产品' }
-  return { to: '/products', label: '查看全部产品' }
-})
+async function loadManualCatalog() {
+  const productIds = manualItems.value.filter((r) => r.kind === 'product').map((r) => r.id)
+  const serviceIds = manualItems.value.filter((r) => r.kind === 'service').map((r) => r.id)
+  const [productRows, serviceRows] = await Promise.all([
+    Promise.all(productIds.map((id) => getProductById(id).catch(() => null))),
+    Promise.all(serviceIds.map((id) => getServiceById(id).catch(() => null))),
+  ])
+  products.value = productRows.filter(Boolean)
+  services.value = serviceRows.filter(Boolean)
+}
+
+async function loadHotCatalog() {
+  const kw = keyword.value.trim()
+  const params = {
+    pageSize: pageSize.value,
+    ...(kw ? { keyword: kw } : { isHot: 1 }),
+  }
+  const needProducts = catalogType.value !== 'service'
+  const needServices = catalogType.value !== 'product'
+  const [productRes, serviceRes] = await Promise.all([
+    needProducts ? getProducts(params) : Promise.resolve({ list: [] }),
+    needServices ? getServices(params) : Promise.resolve({ list: [] }),
+  ])
+  products.value = productRes?.list || []
+  services.value = serviceRes?.list || []
+}
 
 async function loadCatalog() {
   loading.value = true
   pageIndex.value = 0
   try {
-    const kw = keyword.value.trim()
-    const params = { pageSize: 24, ...(kw ? { keyword: kw } : { isHot: 1 }) }
-    const needProducts = catalogType.value !== 'service'
-    const needServices = catalogType.value !== 'product'
-    const [productRes, serviceRes] = await Promise.all([
-      needProducts ? getProducts(params) : Promise.resolve({ list: [] }),
-      needServices ? getServices(params) : Promise.resolve({ list: [] }),
-    ])
-    products.value = productRes?.list || []
-    services.value = serviceRes?.list || []
+    if (sourceMode.value === 'manual') {
+      await loadManualCatalog()
+    } else {
+      await loadHotCatalog()
+    }
   } catch (err) {
     console.error(err.message)
     products.value = []
@@ -78,6 +154,7 @@ async function loadCatalog() {
 }
 
 function onKeywordInput() {
+  if (sourceMode.value === 'manual') return
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
     loadCatalog()
@@ -114,11 +191,34 @@ function onScroll() {
   pageIndex.value = Math.min(maxPage.value, Math.max(0, Math.round(el.scrollLeft / step)))
 }
 
+function syncDefaultType() {
+  const t = String(extra.value.default_type || 'all')
+  catalogType.value = ['product', 'service'].includes(t) ? t : 'all'
+}
+
 watch(catalogType, () => {
+  if (sourceMode.value === 'manual') return
   loadCatalog()
 })
 
-onMounted(loadCatalog)
+watch(
+  () => [
+    props.module?.id,
+    props.module?.main_title,
+    props.module?.body_text,
+    JSON.stringify(props.module?.extra_json || {}),
+    JSON.stringify(props.module?.card_items_json || []),
+  ],
+  () => {
+    syncDefaultType()
+    loadCatalog()
+  }
+)
+
+onMounted(() => {
+  syncDefaultType()
+  loadCatalog()
+})
 
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer)
@@ -128,10 +228,10 @@ onBeforeUnmount(() => {
 <template>
   <section class="section catalog-section">
     <div class="container">
-      <h2 class="section-title">基因编辑核心服务</h2>
-      <p class="section-subtitle">核心主打业务，覆盖 RNA 合成、CRISPR/Cas9 全套技术服务、基因与载体构建</p>
+      <h2 class="section-title">{{ sectionTitle }}</h2>
+      <p v-if="sectionSubtitle" class="section-subtitle">{{ sectionSubtitle }}</p>
 
-      <div class="catalog-toolbar">
+      <div v-if="showSearch && sourceMode !== 'manual'" class="catalog-toolbar">
         <select v-model="catalogType" class="catalog-select" aria-label="选择产品或服务">
           <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
