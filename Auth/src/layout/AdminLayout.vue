@@ -1,5 +1,11 @@
 <template>
-  <div class="admin-layout">
+  <div class="admin-layout" :class="{ 'sidebar-open': mobileNavOpen }">
+    <div
+      v-if="mobileNavOpen"
+      class="sidebar-backdrop"
+      @click="mobileNavOpen = false"
+    />
+
     <aside class="sidebar">
       <div class="sidebar-brand" :class="{ 'has-logo': !!brandLogoUrl }">
         <img
@@ -25,7 +31,7 @@
               @click="onMenuClick(item)"
             >
               <span class="nav-icon">{{ item.icon }}</span>
-              <span>{{ item.label }}</span>
+              <span class="nav-label">{{ item.label }}</span>
               <span v-if="item.children?.length" class="arrow">{{ expanded[item.key] ? '▾' : '▸' }}</span>
             </button>
             <div v-if="item.children?.length && expanded[item.key]" class="sub-list">
@@ -35,8 +41,9 @@
                 :to="child.path"
                 class="nav-item sub-item"
                 :class="{ active: isActive(child.path) }"
+                @click="closeMobileNav"
               >
-                <span>{{ child.label }}</span>
+                <span class="nav-label">{{ child.label }}</span>
               </router-link>
             </div>
           </div>
@@ -46,7 +53,17 @@
 
     <div class="main-area">
       <header class="topbar">
-        <div class="topbar-title">{{ currentTitle }}</div>
+        <div class="topbar-left">
+          <button
+            type="button"
+            class="menu-toggle"
+            aria-label="打开导航菜单"
+            @click="mobileNavOpen = !mobileNavOpen"
+          >
+            <span /><span /><span />
+          </button>
+          <div class="topbar-title">{{ currentTitle }}</div>
+        </div>
         <div class="topbar-right">
           <span class="admin-name">{{ auth.admin?.real_name || auth.admin?.username }}</span>
           <button class="btn btn-secondary btn-sm" @click="handleLogout">退出登录</button>
@@ -63,7 +80,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getSiteCenter } from '@/api'
@@ -76,6 +93,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const brandLogo = ref('')
 const iconLogo = ref('')
+const mobileNavOpen = ref(false)
 
 const brandLogoUrl = computed(() => toPublicMediaUrl(brandLogo.value))
 
@@ -103,6 +121,10 @@ const expanded = ref({})
 
 const currentTitle = computed(() => route.meta.title || '管理后台')
 
+watch(() => route.fullPath, () => {
+  mobileNavOpen.value = false
+})
+
 onMounted(async () => {
   try {
     const groups = await getSiteCenter()
@@ -128,12 +150,19 @@ function isMenuActive(item) {
   return item.children?.some((c) => isActive(c.path))
 }
 
+function closeMobileNav() {
+  mobileNavOpen.value = false
+}
+
 function onMenuClick(item) {
   if (item.children?.length) {
     expanded.value[item.key] = !expanded.value[item.key]
     return
   }
-  if (item.path) router.push(item.path)
+  if (item.path) {
+    router.push(item.path)
+    closeMobileNav()
+  }
 }
 
 function handleLogout() {
@@ -146,6 +175,10 @@ function handleLogout() {
 .admin-layout {
   display: flex;
   min-height: 100vh;
+}
+
+.sidebar-backdrop {
+  display: none;
 }
 
 .sidebar {
@@ -221,14 +254,20 @@ function handleLogout() {
   padding: 10px 14px;
   border-radius: 6px;
   margin-bottom: 2px;
-  color: #cbd5e1;
+  color: #e2e8f0;
   transition: all 0.2s;
   font-size: 14px;
 }
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+  word-break: break-word;
+}
 .nav-item:hover { background: rgba(255, 255, 255, 0.12); color: #f8fafc; }
-.nav-item.active { background: #2563eb; color: #fff; font-weight: 500; }
-.nav-icon { font-size: 14px; width: 18px; text-align: center; }
-.arrow { margin-left: auto; opacity: 0.8; }
+.nav-item.active { background: #2563eb; color: #fff; font-weight: 600; }
+.nav-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.arrow { margin-left: auto; opacity: 0.8; flex-shrink: 0; }
 
 .main-area {
   flex: 1;
@@ -236,6 +275,7 @@ function handleLogout() {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
 }
 
 .topbar {
@@ -249,10 +289,48 @@ function handleLogout() {
   position: sticky;
   top: 0;
   z-index: 50;
+  gap: 12px;
 }
 
-.topbar-title { font-size: 16px; font-weight: 600; color: var(--color-primary); }
-.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.menu-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.menu-toggle span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 2px;
+}
+
+.topbar-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .admin-name { font-size: 13px; color: var(--color-text-light); }
 
 .breadcrumb-bar {
@@ -274,13 +352,124 @@ function handleLogout() {
 }
 
 @media (max-width: 768px) {
-  .sidebar { width: 64px; }
-  .sidebar-brand .brand-text,
-  .nav-item span:not(.nav-icon) { display: none; }
-  .sidebar-brand { justify-content: center; padding: 16px 8px; }
-  .sidebar-brand.has-logo { align-items: center; }
-  .brand-logo { height: 32px; max-width: 48px; }
-  .nav-item { justify-content: center; padding: 12px 8px; }
-  .main-area { margin-left: 64px; }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(15, 23, 42, 0.45);
+  }
+
+  .sidebar {
+    width: min(82vw, 300px);
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.2);
+  }
+
+  .admin-layout.sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-brand {
+    padding: 18px 16px;
+  }
+
+  .brand-logo {
+    height: 44px;
+    max-width: 100%;
+  }
+
+  .brand-title {
+    font-size: 18px;
+  }
+
+  .sidebar-nav {
+    padding: 14px 12px 24px;
+  }
+
+  .nav-item {
+    gap: 12px;
+    padding: 14px 14px;
+    margin-bottom: 4px;
+    font-size: 17px;
+    font-weight: 500;
+    color: #f8fafc;
+    min-height: 48px;
+  }
+
+  .nav-label {
+    display: block !important;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+
+  .nav-icon {
+    width: 22px;
+    font-size: 18px;
+  }
+
+  .sub-item {
+    padding-left: 40px;
+    font-size: 16px;
+    min-height: 44px;
+    color: #e2e8f0;
+  }
+
+  .sub-item .nav-label {
+    font-size: 16px;
+  }
+
+  .arrow {
+    font-size: 16px;
+  }
+
+  .main-area {
+    margin-left: 0;
+  }
+
+  .menu-toggle {
+    display: flex;
+  }
+
+  .topbar {
+    padding: 0 12px;
+  }
+
+  .topbar-title {
+    font-size: 16px;
+  }
+
+  .admin-name {
+    display: none;
+  }
+
+  .breadcrumb-bar {
+    padding: 0 12px;
+  }
+
+  .content {
+    padding: 16px 12px;
+  }
+}
+
+@media (max-width: 430px) {
+  .sidebar {
+    width: min(88vw, 320px);
+  }
+
+  .nav-item {
+    font-size: 18px;
+    padding: 15px 14px;
+  }
+
+  .nav-label {
+    font-size: 18px;
+  }
+
+  .sub-item,
+  .sub-item .nav-label {
+    font-size: 16px;
+  }
 }
 </style>
