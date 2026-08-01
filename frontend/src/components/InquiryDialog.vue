@@ -34,7 +34,16 @@ watch(
     if (val) {
       success.value = false
       errorMsg.value = ''
-      form.value.product_name = props.product?.name || ''
+      const productLabel = props.product?.inquiry_product_name || props.product?.name || ''
+      form.value.product_name = productLabel
+      if (props.product?.variant_name && !form.value.demand) {
+        const parts = [
+          `规格：${props.product.variant_name}`,
+          props.product.variant_goods_code ? `变体编码：${props.product.variant_goods_code}` : '',
+          props.product.variant_price ? `参考价：¥${props.product.variant_price}` : '',
+        ].filter(Boolean)
+        form.value.demand = parts.join('\n')
+      }
       formLoading.value = true
       try {
         const tpl = await getInquiryForm()
@@ -60,8 +69,8 @@ watch(
   () => props.product,
   (val) => {
     if (val) {
-      form.value.product_name = val.name
-      inquiryKeyword.value = val.name
+      form.value.product_name = val.inquiry_product_name || val.name
+      inquiryKeyword.value = form.value.product_name
     }
   }
 )

@@ -4,9 +4,12 @@ import { useRoute } from 'vue-router'
 import { getProductCategories, getProducts, getPageModules, getProductFilterStats } from '@/api'
 import ProductCard from '@/components/ProductCard.vue'
 import ModuleRenderer from '@/components/modules/ModuleRenderer.vue'
+import CatalogHeroBanner from '@/components/catalog/CatalogHeroBanner.vue'
+import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
 import { applySeoMeta } from '@/composables/useSeo'
+import { useCatalogModules } from '@/composables/useCatalogModules'
 
-defineEmits(['open-inquiry'])
+const emit = defineEmits(['open-inquiry'])
 
 const route = useRoute()
 const categories = ref([])
@@ -28,37 +31,33 @@ const fallbackFiltering = ref(false)
 const categoryParentMap = ref(new Map())
 const categoryChildrenMap = ref(new Map())
 
-function isBannerModule(row) {
-  const key = row?.extra_json?.system_key
-  const name = String(row?.module_name || '')
-  return key === 'products_banner' || name === '产品页Banner模块'
-}
-
-function isListSystemModule(row) {
-  const key = row?.extra_json?.system_key
-  const name = String(row?.module_name || '')
-  return key === 'products_list_block' || name.includes('产品列表模块（系统）')
-}
-
-const bannerModule = computed(() => pageModules.value.find((m) => isBannerModule(m)) || null)
-const listModuleIndex = computed(() => pageModules.value.findIndex((m) => isListSystemModule(m)))
-const normalModules = computed(() => pageModules.value.filter((m) => !isBannerModule(m) && !isListSystemModule(m)))
-const modulesBeforeList = computed(() => {
-  if (listModuleIndex.value < 0) return []
-  return pageModules.value
-    .slice(0, listModuleIndex.value)
-    .filter((m) => !isBannerModule(m) && !isListSystemModule(m))
-})
-const modulesAfterList = computed(() => {
-  if (listModuleIndex.value < 0) return normalModules.value
-  return pageModules.value
-    .slice(listModuleIndex.value + 1)
-    .filter((m) => !isBannerModule(m) && !isListSystemModule(m))
+const {
+  bannerModule,
+  bannerImage,
+  listModuleIndex,
+  normalModules,
+  modulesBeforeList,
+  modulesAfterList,
+} = useCatalogModules(pageModules, {
+  bannerSystemKey: 'products_banner',
+  bannerModuleName: '产品页Banner模块',
+  listSystemKey: 'products_list_block',
+  listModuleNameIncludes: '产品列表模块（系统）',
 })
 
 const pageTitleText = computed(() => {
   const active = categories.value.find((c) => activeCategories.value.includes(c.id))
   return active?.name ? `${active.name}及相关产品` : '产品中心'
+})
+
+const breadcrumbs = computed(() => {
+  const items = [
+    { label: '首页', to: '/' },
+    { label: '产品中心', to: '/products' },
+  ]
+  const active = categories.value.find((c) => activeCategories.value.includes(c.id))
+  if (active?.name) items.push({ label: active.name })
+  return items
 })
 
 function normalizeCategoryIds(raw) {
@@ -269,12 +268,12 @@ function buildTagFilters() {
 
 <template>
   <div>
-    <div class="page-banner">
-      <div class="container">
-        <h1>{{ bannerModule?.main_title || '产品中心' }}</h1>
-        <p>{{ bannerModule?.body_text || '基因编辑核心服务 · 科研实验试剂产品' }}</p>
-      </div>
-    </div>
+    <CatalogHeroBanner
+      :title="bannerModule?.main_title || '产品中心'"
+      :subtitle="bannerModule?.body_text || '基因编辑核心服务 · 科研实验试剂产品'"
+      :background-image="bannerImage"
+    />
+    <PageBreadcrumb :items="breadcrumbs" />
     <section class="section">
       <div class="container">
         <ModuleRenderer :modules="modulesBeforeList" />

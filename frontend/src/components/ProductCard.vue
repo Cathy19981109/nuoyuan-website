@@ -1,16 +1,62 @@
 <script setup>
+import { ref, computed, watch } from 'vue'
+
 const props = defineProps({
   product: { type: Object, required: true },
 })
 
-defineEmits(['open-inquiry'])
+const emit = defineEmits(['open-inquiry'])
 
-function pickSpec() {
-  if (Array.isArray(props.product.spec_options) && props.product.spec_options.length) {
-    return props.product.spec_options[0]
-  }
-  if (props.product.spec_text) return props.product.spec_text
-  return ''
+const activeVariants = computed(() => {
+  const rows = Array.isArray(props.product?.variants) ? props.product.variants : []
+  const enabled = rows.filter((v) => Number(v.status) !== 0 && String(v.name || '').trim())
+  if (enabled.length) return enabled
+  const legacy = Array.isArray(props.product?.spec_options) ? props.product.spec_options : []
+  return legacy.map((name, idx) => ({
+    id: `legacy_${idx}`,
+    name,
+    goods_code: props.product?.goods_code || '',
+    price: '',
+    image_url: '',
+    status: 1,
+  }))
+})
+
+const selectedVariantId = ref('')
+
+watch(
+  activeVariants,
+  (rows) => {
+    if (!rows.length) {
+      selectedVariantId.value = ''
+      return
+    }
+    const stillValid = rows.some((v) => String(v.id) === String(selectedVariantId.value))
+    if (!stillValid) selectedVariantId.value = String(rows[0].id)
+  },
+  { immediate: true, deep: true }
+)
+
+const selectedVariant = computed(() => {
+  return activeVariants.value.find((v) => String(v.id) === String(selectedVariantId.value)) || null
+})
+
+const displayCover = computed(() => {
+  return selectedVariant.value?.image_url || props.product.cover_image || ''
+})
+
+function onInquiry() {
+  const variant = selectedVariant.value
+  emit('open-inquiry', {
+    ...props.product,
+    selected_variant: variant || null,
+    variant_name: variant?.name || '',
+    variant_goods_code: variant?.goods_code || '',
+    variant_price: variant?.price || '',
+    inquiry_product_name: variant?.name
+      ? `${props.product.name}（${variant.name}）`
+      : props.product.name,
+  })
 }
 </script>
 
@@ -18,7 +64,7 @@ function pickSpec() {
   <article class="product-card card">
     <router-link :to="product._detailPath || `/products/${product.id}`" class="card-link">
       <div class="card-image">
-        <img v-if="product.cover_image" :src="product.cover_image" :alt="product.name" />
+        <img v-if="displayCover" :src="displayCover" :alt="product.name" />
         <div v-else class="image-placeholder">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -30,16 +76,27 @@ function pickSpec() {
       </div>
       <div class="card-body">
         <h3>{{ product.name }}</h3>
-        <p class="code">目录号：{{ product.goods_code || product.product_code || '-' }}</p>
+        <p class="code">目录号：{{ selectedVariant?.goods_code || product.goods_code || product.product_code || '-' }}</p>
         <p>{{ product.short_desc }}</p>
       </div>
     </router-link>
     <div class="card-actions">
-      <select v-if="pickSpec()" class="spec-select">
-        <option>{{ pickSpec() }}</option>
+      <select
+        v-if="activeVariants.length"
+        v-model="selectedVariantId"
+        class="spec-select"
+        @click.stop
+      >
+        <option
+          v-for="item in activeVariants"
+          :key="item.id"
+          :value="String(item.id)"
+        >
+          {{ item.name }}{{ item.price ? ` · ¥${item.price}` : '' }}
+        </option>
       </select>
       <router-link :to="product._detailPath || `/products/${product.id}`" class="link-detail">了解详情</router-link>
-      <button class="link-inquiry" @click="$emit('open-inquiry', product)">立即询价</button>
+      <button class="link-inquiry" @click.stop="onInquiry">立即询价</button>
     </div>
   </article>
 </template>
@@ -121,6 +178,7 @@ function pickSpec() {
   padding: 10px;
   font-size: 12px;
   color: #0f172a;
+  background: #fff;
 }
 
 .link-detail,

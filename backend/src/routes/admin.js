@@ -53,6 +53,7 @@ router.put(
 );
 router.post('/upload/image', uploadController.image);
 router.post('/upload/video', uploadController.video);
+router.post('/upload/doc', uploadController.doc);
 
 // 导航管理
 router.get('/nav', navController.getAll);

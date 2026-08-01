@@ -1,11 +1,33 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { getPageModules } from '@/api'
+import ModuleRenderer from '@/components/modules/ModuleRenderer.vue'
+import CatalogHeroBanner from '@/components/catalog/CatalogHeroBanner.vue'
+import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
 import { applySeoMeta } from '@/composables/useSeo'
+import { useCatalogModules } from '@/composables/useCatalogModules'
+
 const props = defineProps({
   siteConfig: { type: Object, default: () => ({}) },
 })
 
 defineEmits(['open-inquiry'])
+
+const pageModules = ref([])
+
+const {
+  bannerModule,
+  bannerImage,
+  normalModules,
+} = useCatalogModules(pageModules, {
+  bannerSystemKey: 'contact_banner',
+  bannerModuleName: '联系我们Banner模块',
+})
+
+const breadcrumbs = computed(() => [
+  { label: '首页', to: '/' },
+  { label: '联系我们', to: '/contact' },
+])
 
 const mapEmbedUrl = computed(() => String(props.siteConfig?.contact_map_embed_url || '').trim())
 const mapNavUrl = computed(() => String(props.siteConfig?.contact_map_nav_url || '').trim())
@@ -19,19 +41,24 @@ function openMapNav() {
   window.open(mapNavUrl.value, '_blank')
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    pageModules.value = await getPageModules('contact')
+  } catch {
+    pageModules.value = []
+  }
   applySeoMeta({ pageKey: 'contact' })
 })
 </script>
 
 <template>
   <div>
-    <div class="page-banner">
-      <div class="container">
-        <h1>联系我们</h1>
-        <p>期待与您的合作，欢迎随时联系我们</p>
-      </div>
-    </div>
+    <CatalogHeroBanner
+      :title="bannerModule?.main_title || '联系我们'"
+      :subtitle="bannerModule?.body_text || '期待与您的合作，欢迎随时联系我们'"
+      :background-image="bannerImage"
+    />
+    <PageBreadcrumb :items="breadcrumbs" />
     <section class="section">
       <div class="container contact-grid">
         <div class="contact-info">
@@ -56,7 +83,7 @@ onMounted(() => {
             <span class="label">业务咨询</span>
             <span>欢迎通过询价表单提交您的需求</span>
           </div>
-          <button class="btn btn-primary contact-btn" @click="$emit('open-inquiry')">立即询价</button>
+          <button class="btn btn-primary contact-btn" @click="$emit('open-inquiry')">提交询价</button>
         </div>
         <div class="contact-map">
           <div class="map-card" :class="{ clickable: !!mapNavUrl }" @click="openMapNav">
@@ -79,6 +106,9 @@ onMounted(() => {
             <small v-if="siteConfig.contact_map_note">{{ siteConfig.contact_map_note }}</small>
           </div>
         </div>
+      </div>
+      <div class="container">
+        <ModuleRenderer :modules="normalModules" />
       </div>
     </section>
   </div>

@@ -2,6 +2,13 @@ const pool = require('../config/db');
 const { buildTree } = require('../utils/tree');
 const { paginate } = require('../utils/response');
 const productFilterService = require('./productFilterService');
+const {
+  parseSpecOptions,
+  normalizeVariants,
+  normalizeDetailMedia,
+  normalizeSpecDocs,
+  deriveSpecTextFromVariants,
+} = require('../utils/variantHelpers');
 
 async function getPublicCategoryTree() {
   const [rows] = await pool.query(
@@ -35,27 +42,24 @@ async function expandNavCategoryIds(rawIds = []) {
   return Array.from(visited);
 }
 
-function parseSpecOptions(specText) {
-  if (!specText) return [];
-  const rows = String(specText)
-    .split(/\r?\n|[|；;]/g)
-    .map((v) => v.trim())
-    .filter(Boolean);
-  return Array.from(new Set(rows)).slice(0, 20);
-}
-
 function parseProductRow(row) {
   let gallery = [];
   try { gallery = row.gallery_json ? JSON.parse(row.gallery_json) : []; } catch { gallery = []; }
+  const variants = normalizeVariants(row.variants_json);
+  const activeVariants = variants.filter((v) => v.status !== 0);
   const filterTagMap = productFilterService.parseSelectionMapFromRow(row);
+  const legacySpecs = parseSpecOptions(row.spec_text);
   return {
     ...row,
     gallery_json: gallery,
+    variants,
+    detail_media: normalizeDetailMedia(row.detail_media_json),
+    spec_docs: normalizeSpecDocs(row.spec_docs_json),
     filter_tags: filterTagMap,
     product_type_list: filterTagMap.product_type || [],
     app_type_list: filterTagMap.app_type || [],
     level_tag_list: filterTagMap.level_tag || [],
-    spec_options: parseSpecOptions(row.spec_text),
+    spec_options: activeVariants.length ? activeVariants.map((v) => v.name) : legacySpecs,
   };
 }
 
@@ -167,14 +171,11 @@ async function getPublicProducts({
     params.push(isHot);
   }
   if (keyword) {
-    const keyLike = [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`];
-    if (flags.hasProductType && flags.hasAppType && flags.hasLevelTag) {
-      conditions.push('(name LIKE ? OR en_name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ? OR product_type LIKE ? OR app_type LIKE ? OR level_tag LIKE ?)');
-      params.push(...keyLike, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
-    } else {
-      conditions.push('(name LIKE ? OR en_name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ?)');
-      params.push(...keyLike);
-    }
+    conditions.push('(name LIKE ? OR en_name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ? OR product_type LIKE ? OR app_type LIKE ? OR level_tag LIKE ?)');
+    params.push(
+      `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`,
+      `%${keyword}%`, `%${keyword}%`, `%${keyword}%`
+    );
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
@@ -182,11 +183,11 @@ async function getPublicProducts({
   const total = countRows[0].total;
 
   const selectFields = [
-    'id', 'product_code', 'goods_code', 'category_id', 'name', 'en_name', 'short_desc', 'spec_text', 'cover_image', 'video_url', 'is_hot', 'sort', 'view_count',
+    'id', 'product_code', 'goods_code', 'category_id', 'name', 'en_name', 'short_desc', 'spec_text',
+    'cover_image', 'video_url', 'is_hot', 'sort', 'view_count',
+    'product_type', 'app_type', 'level_tag', 'filter_tags_json',
+    'variants_json',
   ];
-  if (flags.hasProductType) selectFields.push('product_type');
-  if (flags.hasAppType) selectFields.push('app_type');
-  if (flags.hasLevelTag) selectFields.push('level_tag');
   const [rows] = await pool.query(
     `SELECT ${selectFields.join(', ')} FROM nuoyuan_product ${where} ORDER BY sort ASC, id DESC LIMIT ? OFFSET ?`,
     [...params, parseInt(pageSize, 10), offset]
@@ -214,13 +215,11 @@ async function getAdminProducts({ categoryId, status, keyword, productType, appT
   };
   productFilterService.addTagFilterConditions(conditions, params, mergedTagFilters);
   if (keyword) {
-    if (flags.hasProductType && flags.hasAppType && flags.hasLevelTag) {
-      conditions.push('(name LIKE ? OR en_name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ? OR product_type LIKE ? OR app_type LIKE ? OR level_tag LIKE ?)');
-      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
-    } else {
-      conditions.push('(name LIKE ? OR en_name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ?)');
-      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
-    }
+    conditions.push('(name LIKE ? OR en_name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ? OR product_type LIKE ? OR app_type LIKE ? OR level_tag LIKE ?)');
+    params.push(
+      `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`,
+      `%${keyword}%`, `%${keyword}%`, `%${keyword}%`
+    );
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -268,6 +267,7 @@ async function createProduct(data) {
     cover_image, banner_image, sort = 0, is_hot = 0, status = 1,
     goods_code, spec_text, detail_richtext, gallery_json, video_url,
     product_type, app_type, level_tag, filter_tags,
+    variants, variants_json, detail_media, detail_media_json, spec_docs, spec_docs_json,
   } = data;
   const normalizedMap = productFilterService.normalizeFilterMap({
     ...productFilterService.normalizeFilterMap(filter_tags),
@@ -276,11 +276,20 @@ async function createProduct(data) {
     level_tag,
   });
   await productFilterService.validateRequiredSelections(normalizedMap);
+  const normalizedVariants = normalizeVariants(variants !== undefined ? variants : variants_json);
+  const normalizedMedia = normalizeDetailMedia(detail_media !== undefined ? detail_media : detail_media_json);
+  const normalizedDocs = normalizeSpecDocs(spec_docs !== undefined ? spec_docs : spec_docs_json);
+  const syncedSpecText = normalizedVariants.length
+    ? deriveSpecTextFromVariants(normalizedVariants)
+    : (spec_text || null);
   const [nextRows] = await pool.query('SELECT IFNULL(MAX(id), 0) + 1 AS nextId FROM nuoyuan_product');
   const productCode = String(nextRows[0].nextId).padStart(5, '0');
   const [result] = await pool.query(
-    `INSERT INTO nuoyuan_product (product_code, goods_code, category_id, name, en_name, short_desc, spec_text, core_advantage, content, detail_richtext, cover_image, banner_image, gallery_json, video_url, product_type, app_type, level_tag, filter_tags_json, sort, is_hot, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO nuoyuan_product (
+      product_code, goods_code, category_id, name, en_name, short_desc, spec_text, variants_json,
+      core_advantage, content, detail_richtext, detail_media_json, spec_docs_json,
+      cover_image, banner_image, gallery_json, video_url, product_type, app_type, level_tag, filter_tags_json, sort, is_hot, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       productCode,
       goods_code || null,
@@ -288,10 +297,13 @@ async function createProduct(data) {
       name,
       en_name || null,
       short_desc,
-      spec_text || null,
+      syncedSpecText,
+      JSON.stringify(normalizedVariants),
       core_advantage || null,
       content || null,
       detail_richtext || null,
+      JSON.stringify(normalizedMedia),
+      JSON.stringify(normalizedDocs),
       cover_image || null,
       banner_image || null,
       JSON.stringify(gallery_json || []),
@@ -315,6 +327,24 @@ async function updateProduct(id, data) {
   if (data.gallery_json !== undefined) {
     fields.push('gallery_json = ?');
     values.push(JSON.stringify(data.gallery_json || []));
+  }
+  const hasVariantInput = data.variants !== undefined || data.variants_json !== undefined;
+  if (hasVariantInput) {
+    const normalizedVariants = normalizeVariants(data.variants !== undefined ? data.variants : data.variants_json);
+    fields.push('variants_json = ?');
+    values.push(JSON.stringify(normalizedVariants));
+    if (data.spec_text === undefined) {
+      fields.push('spec_text = ?');
+      values.push(deriveSpecTextFromVariants(normalizedVariants) || null);
+    }
+  }
+  if (data.detail_media !== undefined || data.detail_media_json !== undefined) {
+    fields.push('detail_media_json = ?');
+    values.push(JSON.stringify(normalizeDetailMedia(data.detail_media !== undefined ? data.detail_media : data.detail_media_json)));
+  }
+  if (data.spec_docs !== undefined || data.spec_docs_json !== undefined) {
+    fields.push('spec_docs_json = ?');
+    values.push(JSON.stringify(normalizeSpecDocs(data.spec_docs !== undefined ? data.spec_docs : data.spec_docs_json)));
   }
   const hasSelectionChange = data.filter_tags !== undefined
     || data.product_type !== undefined

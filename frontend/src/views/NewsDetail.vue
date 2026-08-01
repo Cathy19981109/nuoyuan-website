@@ -1,12 +1,30 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { getNewsById } from '@/api'
 import { applySeoMeta } from '@/composables/useSeo'
+import CatalogHeroBanner from '@/components/catalog/CatalogHeroBanner.vue'
+import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
+import { DEFAULT_CATALOG_BANNER } from '@/composables/useCatalogModules'
 
 const route = useRoute()
 const news = ref(null)
 const loading = ref(true)
+
+const bannerImage = computed(() => news.value?.cover_image || news.value?.banner_image || DEFAULT_CATALOG_BANNER)
+const breadcrumbs = computed(() => {
+  const items = [
+    { label: '首页', to: '/' },
+    { label: '新闻动态', to: '/news' },
+  ]
+  if (news.value?.title) items.push({ label: news.value.title })
+  return items
+})
+const subtitle = computed(() => {
+  if (!news.value) return ''
+  const parts = [news.value.author, news.value.publish_time?.slice(0, 10)].filter(Boolean)
+  return parts.join(' · ')
+})
 
 onMounted(async () => {
   try {
@@ -22,12 +40,12 @@ onMounted(async () => {
   <div>
     <div v-if="loading" class="loading">加载中...</div>
     <template v-else-if="news">
-      <div class="page-banner">
-        <div class="container">
-          <h1>{{ news.title }}</h1>
-          <p>{{ news.author }} · {{ news.publish_time?.slice(0, 10) }}</p>
-        </div>
-      </div>
+      <CatalogHeroBanner
+        :title="news.title"
+        :subtitle="subtitle"
+        :background-image="bannerImage"
+      />
+      <PageBreadcrumb :items="breadcrumbs" />
       <section class="section">
         <div class="container article">
           <div class="content" v-html="news.content" />
@@ -50,20 +68,10 @@ onMounted(async () => {
   font-size: 15px;
 }
 
-.content :deep(img) {
-  max-width: 100%;
-  border-radius: 8px;
-  margin: 16px 0;
-}
-
 .back-link {
   display: inline-block;
-  margin-top: 40px;
+  margin-top: 32px;
   color: var(--color-primary);
   font-size: 14px;
-}
-
-.back-link:hover {
-  text-decoration: underline;
 }
 </style>

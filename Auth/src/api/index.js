@@ -6,6 +6,7 @@ export const changePassword = (data) => request.put('/password', data)
 export const updateProfileBinding = (data) => request.put('/profile/binding', data)
 export const uploadImageFile = (formData) => request.post('/upload/image', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const uploadVideoFile = (formData) => request.post('/upload/video', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const uploadDocFile = (formData) => request.post('/upload/doc', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 
 export const getNavList = () => request.get('/nav')
 export const getNavById = (id) => request.get(`/nav/${id}`)

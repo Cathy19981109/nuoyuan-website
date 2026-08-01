@@ -1,13 +1,26 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { getApplicationById } from '@/api'
+import CatalogHeroBanner from '@/components/catalog/CatalogHeroBanner.vue'
+import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
+import { DEFAULT_CATALOG_BANNER } from '@/composables/useCatalogModules'
 
 defineEmits(['open-inquiry'])
 
 const route = useRoute()
 const application = ref(null)
 const loading = ref(true)
+
+const bannerImage = computed(() => application.value?.cover_image || application.value?.icon || DEFAULT_CATALOG_BANNER)
+const breadcrumbs = computed(() => {
+  const items = [
+    { label: '首页', to: '/' },
+    { label: '应用领域', to: '/applications' },
+  ]
+  if (application.value?.name) items.push({ label: application.value.name })
+  return items
+})
 
 onMounted(async () => {
   try {
@@ -22,12 +35,12 @@ onMounted(async () => {
   <div>
     <div v-if="loading" class="loading">加载中...</div>
     <template v-else-if="application">
-      <div class="page-banner">
-        <div class="container">
-          <h1>{{ application.name }}</h1>
-          <p>{{ application.description }}</p>
-        </div>
-      </div>
+      <CatalogHeroBanner
+        :title="application.name"
+        :subtitle="application.description"
+        :background-image="bannerImage"
+      />
+      <PageBreadcrumb :items="breadcrumbs" />
       <section class="section">
         <div class="container detail">
           <div v-if="application.content" class="content" v-html="application.content" />

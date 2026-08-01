@@ -205,8 +205,49 @@
             <textarea v-model="form.short_desc" class="form-control" rows="2" />
           </div>
           <div class="form-group">
-            <label>产品规格</label>
-            <input v-model="form.spec_text" class="form-control" placeholder="例如：1mg/支；10次实验" />
+            <label>{{ isServiceMode ? '服务变体（规格）' : '产品变体（规格）' }}</label>
+            <div class="hint" style="color:#1d4ed8;margin-bottom:8px">同一 listing 可配置多个规格；前台列表与详情页均可下拉选择</div>
+            <div class="variant-list">
+              <div v-for="(variant, idx) in form.variants" :key="variant.id || idx" class="variant-row">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>规格名称</label>
+                    <input v-model="variant.name" class="form-control" placeholder="如 50 μL 反应体系" />
+                  </div>
+                  <div class="form-group">
+                    <label>变体商品编码</label>
+                    <input v-model="variant.goods_code" class="form-control" placeholder="如 NY-MB-00004-A" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>参考价格</label>
+                    <input v-model="variant.price" class="form-control" placeholder="如 128.00" />
+                  </div>
+                  <div class="form-group">
+                    <label>启用</label>
+                    <select v-model.number="variant.status" class="form-control">
+                      <option :value="1">启用</option>
+                      <option :value="0">停用</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>变体图（可选）</label>
+                    <div class="gallery-row">
+                      <input type="file" accept=".png,.jpg,.jpeg,.webp" @change="(e) => onVariantImageSelect(e, idx)" />
+                      <button v-if="variant.image_url" type="button" class="btn btn-danger btn-sm" @click="variant.image_url = ''">移除</button>
+                    </div>
+                    <img v-if="variant.image_url" :src="variant.image_url" class="gallery-thumb" />
+                  </div>
+                  <div class="form-group" style="display:flex;align-items:flex-end">
+                    <button type="button" class="btn btn-danger btn-sm" @click="removeVariant(idx)">删除变体</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary add-upload-btn" @click="addVariant">+ 新增变体</button>
           </div>
           <div class="form-group">
             <label>核心优势</label>
@@ -215,6 +256,68 @@
           <div class="form-group">
             <label>详情富文本（支持段落、表格、图片链接、文献链接）</label>
             <textarea v-model="form.detail_richtext" class="form-control" rows="8" />
+          </div>
+          <div class="form-group">
+            <label>详情规格说明（图文/视频混排）</label>
+            <div class="hint" style="color:#1d4ed8;margin-bottom:8px">展示在详情页下方，可上传图片或 mp4 视频，并填写说明文字</div>
+            <div class="variant-list">
+              <div v-for="(media, idx) in form.detail_media" :key="media.uid || idx" class="variant-row">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>类型</label>
+                    <select v-model="media.type" class="form-control">
+                      <option value="image">图片</option>
+                      <option value="video">视频</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>名称</label>
+                    <input v-model="media.name" class="form-control" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>上传文件</label>
+                  <div class="gallery-row">
+                    <input
+                      type="file"
+                      :accept="media.type === 'video' ? '.mp4,video/mp4' : '.png,.jpg,.jpeg,.webp'"
+                      @change="(e) => onDetailMediaSelect(e, idx)"
+                    />
+                    <button v-if="media.url" type="button" class="btn btn-danger btn-sm" @click="removeDetailMedia(idx)">删除</button>
+                  </div>
+                  <img v-if="media.type === 'image' && media.url" :src="media.url" class="gallery-thumb" />
+                  <video v-if="media.type === 'video' && media.url" :src="media.url" class="gallery-thumb" controls />
+                </div>
+                <div class="form-group">
+                  <label>说明文字</label>
+                  <textarea v-model="media.caption" class="form-control" rows="2" placeholder="规格说明、使用提示等" />
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary add-upload-btn" @click="addDetailMedia">+ 新增媒体</button>
+          </div>
+          <div class="form-group">
+            <label>规格说明书 / PDF 下载</label>
+            <div class="hint" style="color:#1d4ed8;margin-bottom:8px">支持 pdf/doc/docx，详情页提供下载入口</div>
+            <div class="variant-list">
+              <div v-for="(doc, idx) in form.spec_docs" :key="doc.uid || idx" class="variant-row">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>文档名称</label>
+                    <input v-model="doc.name" class="form-control" placeholder="产品说明书.pdf" />
+                  </div>
+                  <div class="form-group">
+                    <label>上传</label>
+                    <div class="gallery-row">
+                      <input type="file" accept=".pdf,.doc,.docx,application/pdf" @change="(e) => onSpecDocSelect(e, idx)" />
+                      <button type="button" class="btn btn-danger btn-sm" @click="removeSpecDoc(idx)">删除</button>
+                    </div>
+                    <a v-if="doc.url" :href="doc.url" target="_blank" rel="noopener" class="doc-link">已上传：{{ doc.url }}</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary add-upload-btn" @click="addSpecDoc">+ 新增文档</button>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -306,6 +409,7 @@ import {
   reorderProducts,
   uploadImageFile,
   uploadVideoFile,
+  uploadDocFile,
   getProductFilterTags,
   getServiceFilterTags,
   getServiceCategories,
@@ -356,9 +460,50 @@ const defaultForm = () => ({
   content: '', detail_richtext: '', cover_image: '', banner_image: '', goods_code: '', spec_text: '', video_url: '',
   product_type: [], app_type: [], level_tag: [],
   filter_tags: {},
+  variants: [],
+  detail_media: [],
+  spec_docs: [],
   gallery_json: [{ name: '上传位1', url: '', uid: String(Date.now()) }], is_hot: 0, status: 1,
 })
 const form = ref(defaultForm())
+
+function makeVariant(partial = {}) {
+  return {
+    id: partial.id || `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    name: partial.name || '',
+    goods_code: partial.goods_code || '',
+    price: partial.price || '',
+    image_url: partial.image_url || '',
+    sort: Number.isFinite(Number(partial.sort)) ? Number(partial.sort) : 0,
+    status: Number(partial.status) === 0 ? 0 : 1,
+  }
+}
+
+function normalizeVariants(list = []) {
+  if (!Array.isArray(list) || !list.length) return []
+  return list.map((item, idx) => makeVariant({ ...item, sort: idx }))
+}
+
+function normalizeDetailMedia(list = []) {
+  if (!Array.isArray(list)) return []
+  return list.map((item, idx) => ({
+    type: item?.type === 'video' ? 'video' : 'image',
+    name: item?.name || '',
+    url: item?.url || '',
+    caption: item?.caption || '',
+    uid: item?.uid || `${Date.now()}_${idx}`,
+  }))
+}
+
+function normalizeSpecDocs(list = []) {
+  if (!Array.isArray(list)) return []
+  return list.map((item, idx) => ({
+    name: item?.name || '',
+    url: item?.url || '',
+    size: item?.size || null,
+    uid: item?.uid || `${Date.now()}_${idx}`,
+  }))
+}
 const dragId = ref(null)
 const filterTags = ref({ product_type: [], app_type: [], level_tag: [] })
 const filterGroups = ref([])
@@ -442,6 +587,9 @@ async function openForm(item = null) {
         product_type: (data.product_type_list || []).slice(),
         app_type: (data.app_type_list || []).slice(),
         level_tag: (data.level_tag_list || []).slice(),
+        variants: normalizeVariants(data.variants || []),
+        detail_media: normalizeDetailMedia(data.detail_media || []),
+        spec_docs: normalizeSpecDocs(data.spec_docs || []),
       }
     }
     catch (e) { alert(e.message); return }
@@ -481,6 +629,11 @@ async function handleSave() {
       banner_image: uploadedGallery[0].url,
       video_url: form.value.video_url || null,
       filter_tags: form.value.filter_tags || {},
+      variants: (form.value.variants || [])
+        .map((v, idx) => ({ ...v, sort: idx }))
+        .filter((v) => String(v.name || '').trim()),
+      detail_media: (form.value.detail_media || []).filter((m) => m?.url),
+      spec_docs: (form.value.spec_docs || []).filter((d) => d?.url),
     }
     if (editing.value) {
       if (isServiceMode.value) await updateService(editing.value.id, payload)
@@ -717,6 +870,95 @@ async function onVideoSelect(e) {
   }
 }
 
+function addVariant() {
+  form.value.variants = [...(form.value.variants || []), makeVariant({ sort: (form.value.variants || []).length })]
+}
+
+function removeVariant(idx) {
+  form.value.variants.splice(idx, 1)
+}
+
+async function onVariantImageSelect(e, idx) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const uploaded = await uploadImageFile(fd)
+    form.value.variants[idx].image_url = uploaded.url
+  } catch (error) {
+    alert(error.message || '变体图上传失败')
+  } finally {
+    e.target.value = ''
+  }
+}
+
+function addDetailMedia() {
+  form.value.detail_media = [
+    ...(form.value.detail_media || []),
+    { type: 'image', name: '', url: '', caption: '', uid: String(Date.now()) },
+  ]
+}
+
+function removeDetailMedia(idx) {
+  form.value.detail_media.splice(idx, 1)
+}
+
+async function onDetailMediaSelect(e, idx) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const media = form.value.detail_media[idx]
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (media.type === 'video') {
+      if (file.type !== 'video/mp4') {
+        alert('视频仅支持 mp4')
+        return
+      }
+      const uploaded = await uploadVideoFile(fd)
+      media.url = uploaded.url
+      if (!media.name) media.name = uploaded.name || file.name
+    } else {
+      const uploaded = await uploadImageFile(fd)
+      media.url = uploaded.url
+      if (!media.name) media.name = uploaded.name || file.name
+    }
+  } catch (error) {
+    alert(error.message || '上传失败')
+  } finally {
+    e.target.value = ''
+  }
+}
+
+function addSpecDoc() {
+  form.value.spec_docs = [
+    ...(form.value.spec_docs || []),
+    { name: '', url: '', size: null, uid: String(Date.now()) },
+  ]
+}
+
+function removeSpecDoc(idx) {
+  form.value.spec_docs.splice(idx, 1)
+}
+
+async function onSpecDocSelect(e, idx) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const uploaded = await uploadDocFile(fd)
+    form.value.spec_docs[idx].url = uploaded.url
+    form.value.spec_docs[idx].size = uploaded.size || null
+    if (!form.value.spec_docs[idx].name) form.value.spec_docs[idx].name = uploaded.name || file.name
+  } catch (error) {
+    alert(error.message || '文档上传失败')
+  } finally {
+    e.target.value = ''
+  }
+}
+
 function closeImageEditor() {
   imageEditorVisible.value = false
   imageEditorIndex.value = -1
@@ -880,6 +1122,20 @@ async function confirmImageEditor() {
   cursor: pointer;
 }
 .category-item:hover { background: #eff6ff; border-color: #93c5fd; }
+.variant-list { display: grid; gap: 12px; margin-bottom: 10px; }
+.variant-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fafc;
+}
+.doc-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: #1d4ed8;
+  font-size: 12px;
+  word-break: break-all;
+}
 .crop-stage {
   width: 100%;
   max-width: 760px;

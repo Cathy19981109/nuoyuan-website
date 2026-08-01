@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({
@@ -14,8 +14,6 @@ const router = useRouter()
 const searchKeyword = ref('')
 const showSearch = ref(false)
 const mobileMenuOpen = ref(false)
-const megaTopId = ref(null)
-const megaChildId = ref(null)
 
 const navRouteMap = {
   首页: '/',
@@ -29,11 +27,13 @@ const navRouteMap = {
 
 const menuItems = computed(() => {
   if (props.navList.length) {
-    return props.navList.map((item) => ({
-      ...item,
-      path: item.link_url || navRouteMap[item.name] || '/',
-      children: item.children || [],
-    }))
+    // Only top-level nav items; dropdown/submenus removed
+    return props.navList
+      .filter((item) => !item.parent_id || Number(item.parent_id) === 0)
+      .map((item) => ({
+        ...item,
+        path: item.link_url || navRouteMap[item.name] || '/',
+      }))
   }
   return Object.entries(navRouteMap).map(([name, path], index) => ({
     id: index,
@@ -42,13 +42,11 @@ const menuItems = computed(() => {
   }))
 })
 
-const productNavNode = computed(() => menuItems.value.find((item) => item.name === '产品中心') || null)
-const megaTopList = computed(() => productNavNode.value?.children || [])
-const activeMegaTop = computed(() => megaTopList.value.find((row) => row.id === megaTopId.value) || megaTopList.value[0] || null)
-const activeMegaChildren = computed(() => activeMegaTop.value?.children || [])
-const activeMegaChild = computed(() => activeMegaChildren.value.find((row) => row.id === megaChildId.value) || activeMegaChildren.value[0] || null)
-const hasThirdLevel = computed(() => megaTopList.value.some((row) => Array.isArray(row.children) && row.children.length > 0))
-const megaColumnCount = computed(() => (hasThirdLevel.value ? 2 : 1))
+/** 立即询价仅出现在产品中心 / 技术服务（含详情），其他导航页不展示 */
+const showInquiryButton = computed(() => {
+  const path = route.path || ''
+  return path.startsWith('/products') || path.startsWith('/services')
+})
 
 function isActive(path) {
   if (path === '/') return route.path === '/'
@@ -69,39 +67,6 @@ function handleConsult() {
     window.open(url, '_blank')
   } else {
     router.push('/contact')
-  }
-}
-
-function onMegaTopHover(id) {
-  megaTopId.value = id
-  const top = megaTopList.value.find((row) => row.id === id)
-  megaChildId.value = top?.children?.[0]?.id || null
-}
-
-function onMegaChildHover(id) {
-  megaChildId.value = id
-}
-
-function navNodePath(node, fallback = '/products') {
-  const url = String(node?.link_url || '').trim()
-  if (url) return url
-  if (node?.id) {
-    return `/products?categoryIds=${node.id}`
-  }
-  return fallback
-}
-
-onMounted(() => {
-  if (megaTopList.value.length) {
-    megaTopId.value = megaTopList.value[0].id
-    megaChildId.value = megaTopList.value[0].children?.[0]?.id || null
-  }
-})
-
-function ensureMegaInit() {
-  if (!megaTopId.value && megaTopList.value.length) {
-    megaTopId.value = megaTopList.value[0].id
-    megaChildId.value = megaTopList.value[0].children?.[0]?.id || null
   }
 }
 </script>
@@ -125,59 +90,16 @@ function ensureMegaInit() {
       </router-link>
 
       <nav class="nav" :class="{ open: mobileMenuOpen }">
-        <div v-for="item in menuItems" :key="item.id" class="nav-group">
-          <router-link
-            :to="item.path"
-            class="nav-item"
-            :class="{ active: isActive(item.path) }"
-            @click="mobileMenuOpen = false"
-          >
-            {{ String(item.name || '').slice(0, 4) }}
-          </router-link>
-          <div
-            v-if="item.name === '产品中心' && megaTopList.length"
-            class="dropdown mega-dropdown"
-            :class="`mega-cols-${megaColumnCount}`"
-            @mouseenter="ensureMegaInit"
-          >
-            <div class="mega-col">
-              <div
-                v-for="row in megaTopList"
-                :key="row.id"
-                class="mega-row"
-                :class="{ active: activeMegaTop?.id === row.id }"
-                @mouseenter="onMegaTopHover(row.id)"
-              >
-                <router-link :to="navNodePath(row, '/products')">{{ row.name }}</router-link>
-                <span class="arrow">›</span>
-              </div>
-            </div>
-            <div v-if="hasThirdLevel" class="mega-col">
-              <div
-                v-for="row in activeMegaChildren"
-                :key="row.id"
-                class="mega-row"
-                :class="{ active: activeMegaChild?.id === row.id }"
-                @mouseenter="onMegaChildHover(row.id)"
-              >
-                <router-link :to="navNodePath(row, '/products')">{{ row.name }}</router-link>
-              </div>
-            </div>
-          </div>
-          <div v-else-if="item.children?.length" class="dropdown">
-            <div v-if="item.dropdown_banner" class="dropdown-banner">
-              <img :src="item.dropdown_banner" :alt="item.name" />
-            </div>
-            <router-link
-              v-for="child in item.children"
-              :key="child.id"
-              :to="child.link_url || '#'"
-              class="dropdown-item"
-            >
-              {{ String(child.name || '').slice(0, 8) }}
-            </router-link>
-          </div>
-        </div>
+        <router-link
+          v-for="item in menuItems"
+          :key="item.id"
+          :to="item.path"
+          class="nav-item"
+          :class="{ active: isActive(item.path) }"
+          @click="mobileMenuOpen = false"
+        >
+          {{ String(item.name || '').slice(0, 4) }}
+        </router-link>
       </nav>
 
       <div class="actions">
@@ -187,7 +109,13 @@ function ensureMegaInit() {
           </svg>
         </button>
         <button class="btn btn-outline consult-btn" @click="handleConsult">在线咨询</button>
-        <button class="btn btn-primary" @click="emit('open-inquiry')">立即询价</button>
+        <button
+          v-if="showInquiryButton"
+          class="btn btn-primary"
+          @click="emit('open-inquiry')"
+        >
+          立即询价
+        </button>
         <button class="menu-toggle" @click="mobileMenuOpen = !mobileMenuOpen">
           <span /><span /><span />
         </button>
@@ -269,10 +197,6 @@ function ensureMegaInit() {
   justify-content: center;
 }
 
-.nav-group {
-  position: relative;
-}
-
 .nav-item {
   padding: 8px 14px;
   color: rgba(255, 255, 255, 0.85);
@@ -280,91 +204,6 @@ function ensureMegaInit() {
   border-radius: 4px;
   transition: all 0.2s;
   white-space: nowrap;
-}
-
-.dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 220px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-  padding: 10px;
-  display: none;
-  z-index: 20;
-}
-.nav-group:hover .dropdown {
-  display: block;
-}
-.dropdown-banner {
-  margin-bottom: 8px;
-  border-radius: 6px;
-  overflow: hidden;
-}
-.dropdown-banner img {
-  width: 100%;
-  height: 68px;
-  object-fit: cover;
-}
-.dropdown-item {
-  display: block;
-  padding: 8px 10px;
-  border-radius: 6px;
-  color: #1f2937;
-  font-size: 13px;
-}
-.dropdown-item:hover {
-  background: #f3f4f6;
-}
-.mega-dropdown {
-  width: 520px;
-  display: none;
-  grid-template-columns: 220px 300px;
-  gap: 0;
-  padding: 0;
-  overflow: hidden;
-}
-.mega-dropdown.mega-cols-1 {
-  width: 260px;
-  grid-template-columns: 1fr;
-}
-.mega-dropdown.mega-cols-2 {
-  width: 520px;
-  grid-template-columns: 220px 300px;
-}
-.nav-group:hover .mega-dropdown {
-  display: grid;
-}
-.mega-col {
-  min-height: 220px;
-  max-height: 220px;
-  overflow-y: auto;
-  border-right: 1px solid #e5e7eb;
-  background: #fff;
-  padding: 10px 0;
-}
-.mega-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 14px;
-  font-size: 13px;
-  color: #1f2937;
-  cursor: pointer;
-}
-.mega-row:hover,
-.mega-row.active {
-  background: #f3f4f6;
-  color: #111827;
-}
-.mega-row a {
-  color: inherit;
-  width: 100%;
-}
-.mega-row .arrow {
-  color: #9ca3af;
 }
 
 .nav-item:hover,
@@ -466,7 +305,6 @@ function ensureMegaInit() {
     padding: 12px;
     box-shadow: var(--shadow-md);
   }
-  .dropdown { display: none !important; }
 
   .nav.open {
     display: flex;

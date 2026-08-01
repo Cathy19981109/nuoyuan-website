@@ -46,36 +46,23 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>父级导航</label>
-            <select v-model="navForm.parent_id" class="form-control">
-              <option :value="0">顶级导航</option>
-              <option v-for="n in navParentOptions" :key="n.id" :value="n.id">{{ n.name }}</option>
-            </select>
-          </div>
-          <div class="form-group">
             <label>打开方式</label>
             <select v-model="navForm.target" class="form-control">
               <option value="_self">当前窗口</option>
               <option value="_blank">新窗口</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>显示状态</label>
+            <select v-model="navForm.status" class="form-control">
+              <option :value="1">显示</option>
+              <option :value="0">隐藏</option>
+            </select>
+          </div>
         </div>
         <div class="form-group">
           <label>自定义链接（可选）</label>
           <input v-model="navForm.link_url" class="form-control" />
-        </div>
-        <div class="form-group">
-          <label>下拉横幅图</label>
-          <input type="file" accept=".png,.jpg,.jpeg,.webp" @change="onNavBannerSelect" />
-          <div class="hint" style="color:#1d4ed8">建议16:9，1920x720，png/jpg/webp，<=50MB</div>
-          <div class="hint" v-if="navForm.dropdown_banner">已选择：{{ navForm.dropdown_banner }}</div>
-        </div>
-        <div class="form-group">
-          <label>显示状态</label>
-          <select v-model="navForm.status" class="form-control">
-            <option :value="1">显示</option>
-            <option :value="0">隐藏</option>
-          </select>
         </div>
         <div class="toolbar">
           <button class="btn btn-secondary" @click="openPageDialog(activePage)">编辑页面</button>
@@ -363,7 +350,7 @@ const showPageDialog = ref(false)
 const editingPage = ref(null)
 const pageForm = ref({ title: '', nav_name: '' })
 const navTree = ref([])
-const navForm = ref({ id: null, parent_id: 0, name: '', en_name: '', link_url: '', target: '_self', dropdown_banner: '', status: 1 })
+const navForm = ref({ id: null, name: '', en_name: '', link_url: '', target: '_self', status: 1 })
 
 const pageKey = computed(() => activePage.value?.nav_name || 'home')
 const pageLabel = computed(() => activePage.value?.title || '页面')
@@ -408,9 +395,6 @@ const currentRuleText = computed(() => {
     return '图左/图右/图内：4:3，1200x900，png/jpg/webp，<=50MB'
   }
   return activeTemplateRule.value || '请先选择模板'
-})
-const navParentOptions = computed(() => {
-  return (navTree.value || []).filter((n) => n.parent_id === 0 && n.page_id !== activePage.value?.id)
 })
 
 const templateForms = {
@@ -464,8 +448,15 @@ async function loadNavByPage() {
   navTree.value = flattenNavTree(allNav)
   const found = navTree.value.find((n) => n.page_id === activePage.value?.id)
   navForm.value = found
-    ? { ...found }
-    : { id: null, parent_id: 0, page_id: activePage.value?.id, name: activePage.value?.title || '', en_name: '', link_url: '', target: '_self', dropdown_banner: '', status: 1 }
+    ? {
+        id: found.id,
+        name: found.name || '',
+        en_name: found.en_name || '',
+        link_url: found.link_url || '',
+        target: found.target || '_self',
+        status: found.status ?? 1,
+      }
+    : { id: null, name: activePage.value?.title || '', en_name: '', link_url: '', target: '_self', status: 1 }
 }
 
 function flattenNavTree(items = [], out = []) {
@@ -757,37 +748,17 @@ async function removePage(item) {
   if (pageTabs.value.length) await selectPage(pageTabs.value[0])
 }
 
-function parseBannerRule() {
-  return { allowedTypes: ['image/png', 'image/jpeg', 'image/webp'], maxSize: 50 * 1024 * 1024, ratio: 16 / 9 }
-}
-
-async function onNavBannerSelect(e) {
-  const file = e.target.files?.[0]
-  if (!file) return
-  const rule = parseBannerRule()
-  if (!rule.allowedTypes.includes(file.type)) return alert('只支持png/jpg/webp格式')
-  if (file.size > rule.maxSize) return alert('图片不能超过50MB')
-  const size = await getImageSize(file)
-  if (size.width && size.height && Math.abs(size.width / size.height - rule.ratio) > 0.18) {
-    alert('图片比例需接近16:9')
-    return
-  }
-  navForm.value.dropdown_banner = file.name
-  e.target.value = ''
-}
-
 async function saveNavInfo() {
   if (!navForm.value.name) return alert('请填写导航名称')
   savingNav.value = true
   try {
     const payload = {
-      parent_id: navForm.value.parent_id || 0,
+      parent_id: 0,
       name: navForm.value.name,
       en_name: navForm.value.en_name || null,
       page_id: activePage.value.id,
       link_url: navForm.value.link_url || null,
       target: navForm.value.target || '_self',
-      dropdown_banner: navForm.value.dropdown_banner || null,
       status: Number(navForm.value.status) === 0 ? 0 : 1,
     }
     if (navForm.value.id) await updateNav(navForm.value.id, payload)

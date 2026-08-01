@@ -43,7 +43,7 @@ onMounted(async () => {
         <p class="hero-desc">专注基因编辑核心服务与科研实验试剂，为生命科学研究提供高品质解决方案</p>
         <div class="hero-actions">
           <router-link to="/products" class="btn btn-primary">探索产品</router-link>
-          <button class="btn btn-outline hero-outline" @click="$emit('open-inquiry')">立即询价</button>
+          <router-link to="/services" class="btn btn-outline hero-outline">技术服务</router-link>
         </div>
       </div>
     </section>
@@ -123,11 +123,24 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.home :deep(.section-title),
+.home :deep(.section-subtitle) {
+  text-align: left;
+}
+
 .hero {
+  position: relative;
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   color: var(--color-white);
   padding: 80px 0 100px;
-  text-align: center;
+  text-align: left;
+  overflow: hidden;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 640px;
 }
 
 .hero h1 {
@@ -147,14 +160,15 @@ onMounted(async () => {
   font-size: 18px;
   opacity: 0.9;
   max-width: 640px;
-  margin: 0 auto 36px;
+  margin: 0 0 36px;
   line-height: 1.8;
 }
 
 .hero-actions {
   display: flex;
   gap: 16px;
-  justify-content: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .hero-outline {
@@ -165,8 +179,16 @@ onMounted(async () => {
   background: var(--color-bg);
 }
 
+.services-section .section-title,
+.services-section .section-subtitle,
+.advantages .section-title,
+.news-section .section-title,
+.news-section .section-subtitle {
+  text-align: left;
+}
+
 .section-action {
-  text-align: center;
+  text-align: left;
   margin-top: 40px;
 }
 
@@ -181,7 +203,7 @@ onMounted(async () => {
 }
 
 .advantage-item {
-  text-align: center;
+  text-align: left;
   padding: 32px 20px;
   border-radius: 12px;
   border: 1px solid var(--color-border);
@@ -222,6 +244,7 @@ onMounted(async () => {
 .news-item {
   padding: 24px;
   display: block;
+  text-align: left;
 }
 
 .news-date {
@@ -245,6 +268,10 @@ onMounted(async () => {
   overflow: hidden;
 }
 
+.home :deep(.dynamic-module .text-box) {
+  text-align: left;
+}
+
 @media (max-width: 1024px) {
   .advantage-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -262,7 +289,7 @@ onMounted(async () => {
 
   .hero-actions {
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
   }
 
   .advantage-grid {

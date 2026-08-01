@@ -12,12 +12,18 @@
   --container-width: 1200px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.1);
+  /* 默认视觉比例：在原先 70% 基础上调至其 125%（约 87.5%） */
+  --page-zoom: 0.875;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html {
+  zoom: var(--page-zoom);
 }
 
 html,

@@ -1,12 +1,29 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { getPageByNavName, getPageModules } from '@/api'
 import ModuleRenderer from '@/components/modules/ModuleRenderer.vue'
+import CatalogHeroBanner from '@/components/catalog/CatalogHeroBanner.vue'
+import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
 import { applySeoMeta } from '@/composables/useSeo'
+import { useCatalogModules } from '@/composables/useCatalogModules'
 
 const page = ref(null)
 const pageModules = ref([])
 const loading = ref(true)
+
+const {
+  bannerModule,
+  bannerImage,
+  normalModules,
+} = useCatalogModules(pageModules, {
+  bannerSystemKey: 'about_banner',
+  bannerModuleName: '关于我们Banner模块',
+})
+
+const breadcrumbs = computed(() => [
+  { label: '首页', to: '/' },
+  { label: '关于我们', to: '/about' },
+])
 
 onMounted(async () => {
   try {
@@ -23,12 +40,12 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="page-banner">
-      <div class="container">
-        <h1>关于我们</h1>
-        <p>诺元智合 · 专注基因编辑与生命科学研究</p>
-      </div>
-    </div>
+    <CatalogHeroBanner
+      :title="bannerModule?.main_title || '关于我们'"
+      :subtitle="bannerModule?.body_text || '诺元智合 · 专注基因编辑与生命科学研究'"
+      :background-image="bannerImage"
+    />
+    <PageBreadcrumb :items="breadcrumbs" />
     <section class="section">
       <div class="container about">
         <div v-if="loading" class="loading">加载中...</div>
@@ -51,8 +68,10 @@ onMounted(async () => {
           </ul>
         </div>
       </div>
+      <div class="container">
+        <ModuleRenderer :modules="normalModules" />
+      </div>
     </section>
-    <ModuleRenderer :modules="pageModules" />
   </div>
 </template>
 
@@ -72,22 +91,15 @@ onMounted(async () => {
 }
 
 .default-content p,
-.default-content li {
-  color: var(--color-text-light);
-  line-height: 1.9;
+.content {
+  color: var(--color-text);
+  line-height: 1.8;
   font-size: 15px;
 }
 
 .default-content ul {
-  padding-left: 20px;
-}
-
-.default-content li {
-  margin-bottom: 8px;
-}
-
-.content :deep(p) {
-  margin-bottom: 16px;
+  margin: 12px 0 0 20px;
+  color: var(--color-text);
   line-height: 1.9;
 }
 </style>

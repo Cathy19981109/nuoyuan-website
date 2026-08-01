@@ -4,9 +4,12 @@ import { useRoute } from 'vue-router'
 import { getServices, getServiceCategories, getServiceFilterStats, getPageModules } from '@/api'
 import ProductCard from '@/components/ProductCard.vue'
 import ModuleRenderer from '@/components/modules/ModuleRenderer.vue'
+import CatalogHeroBanner from '@/components/catalog/CatalogHeroBanner.vue'
+import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
 import { applySeoMeta } from '@/composables/useSeo'
+import { useCatalogModules } from '@/composables/useCatalogModules'
 
-defineEmits(['open-inquiry'])
+const emit = defineEmits(['open-inquiry'])
 
 const categories = ref([])
 const services = ref([])
@@ -24,32 +27,29 @@ const pageSize = ref(20)
 const pagination = ref({ total: 0, totalPages: 1 })
 const jumpPage = ref(1)
 const route = useRoute()
-function isBannerModule(row) {
-  const key = row?.extra_json?.system_key
-  const name = String(row?.module_name || '')
-  return key === 'services_banner' || name === '服务页Banner模块'
-}
 
-function isListSystemModule(row) {
-  const key = row?.extra_json?.system_key
-  const name = String(row?.module_name || '')
-  return key === 'services_list_block' || name.includes('服务列表模块（系统）')
-}
-
-const bannerModule = computed(() => pageModules.value.find((m) => isBannerModule(m)) || null)
-const listModuleIndex = computed(() => pageModules.value.findIndex((m) => isListSystemModule(m)))
-const normalModules = computed(() => pageModules.value.filter((m) => !isBannerModule(m) && !isListSystemModule(m)))
-const modulesBeforeList = computed(() => {
-  if (listModuleIndex.value < 0) return []
-  return pageModules.value
-    .slice(0, listModuleIndex.value)
-    .filter((m) => !isBannerModule(m) && !isListSystemModule(m))
+const {
+  bannerModule,
+  bannerImage,
+  listModuleIndex,
+  normalModules,
+  modulesBeforeList,
+  modulesAfterList,
+} = useCatalogModules(pageModules, {
+  bannerSystemKey: 'services_banner',
+  bannerModuleName: '服务页Banner模块',
+  listSystemKey: 'services_list_block',
+  listModuleNameIncludes: '服务列表模块（系统）',
 })
-const modulesAfterList = computed(() => {
-  if (listModuleIndex.value < 0) return normalModules.value
-  return pageModules.value
-    .slice(listModuleIndex.value + 1)
-    .filter((m) => !isBannerModule(m) && !isListSystemModule(m))
+
+const breadcrumbs = computed(() => {
+  const items = [
+    { label: '首页', to: '/' },
+    { label: '技术服务', to: '/services' },
+  ]
+  const first = categories.value.find((c) => activeCategoryIds.value.includes(c.id))
+  if (first?.name) items.push({ label: first.name })
+  return items
 })
 
 async function loadServices() {
@@ -180,12 +180,12 @@ function buildTagFilters() {
 
 <template>
   <div>
-    <div class="page-banner">
-      <div class="container">
-        <h1>{{ bannerModule?.main_title || '技术服务' }}</h1>
-        <p>{{ bannerModule?.body_text || 'CRISPR/Cas9 全套技术服务 · 基因编辑一站式解决方案' }}</p>
-      </div>
-    </div>
+    <CatalogHeroBanner
+      :title="bannerModule?.main_title || '技术服务'"
+      :subtitle="bannerModule?.body_text || 'CRISPR/Cas9 全套技术服务 · 基因编辑一站式解决方案'"
+      :background-image="bannerImage"
+    />
+    <PageBreadcrumb :items="breadcrumbs" />
     <section class="section">
       <div class="container">
         <ModuleRenderer :modules="modulesBeforeList" />

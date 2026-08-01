@@ -175,11 +175,12 @@ async function ensureDefaultSelectionsOnce() {
     `SELECT id, ${ITEM_JSON_COL}, product_type, app_type, level_tag FROM ${ITEM_TABLE}`
   );
   for (const row of items) {
-    const current = normalizeFilterMap(safeParseJson(row[ITEM_JSON_COL], {}));
+    const rawMap = safeParseJson(row[ITEM_JSON_COL], {});
+    const current = normalizeFilterMap(rawMap);
     LEGACY_KEYS.forEach((k) => {
       if (!current[k] || !current[k].length) current[k] = splitStoredTags(row[k]);
     });
-    let changed = false;
+    let changed = Object.keys(rawMap).some((k) => typeof rawMap[k] === 'string');
     treeReady.forEach((g) => {
       const validSet = new Set(groupTagSet[g.key] || []);
       const picked = (current[g.key] || []).filter((name) => validSet.has(name));
@@ -193,11 +194,12 @@ async function ensureDefaultSelectionsOnce() {
         current[g.key] = picked;
       }
     });
-    if (!changed) continue;
+    const nextJson = JSON.stringify(current);
+    if (!changed && String(row[ITEM_JSON_COL] || '') === nextJson) continue;
     await pool.query(
       `UPDATE ${ITEM_TABLE} SET ${ITEM_JSON_COL} = ?, product_type = ?, app_type = ?, level_tag = ? WHERE id = ?`,
       [
-        JSON.stringify(current),
+        nextJson,
         (current.product_type || []).join(','),
         (current.app_type || []).join(','),
         (current.level_tag || []).join(','),
@@ -356,6 +358,18 @@ async function reorderTags(tagGroup, orderIds = []) {
   }
 }
 
+/** Match tag in array JSON / scalar JSON / legacy comma column. */
+function pushTagMatchCondition(orRows, params, groupKey, name) {
+  orRows.push("JSON_SEARCH(CAST(IFNULL(NULLIF(filter_tags_json, ''), '{}') AS JSON), 'one', ?, NULL, ?) IS NOT NULL");
+  params.push(name, `$."${groupKey}"[*]`);
+  orRows.push("JSON_UNQUOTE(JSON_EXTRACT(CAST(IFNULL(NULLIF(filter_tags_json, ''), '{}') AS JSON), ?)) = ?");
+  params.push(`$."${groupKey}"`, name);
+  if (LEGACY_KEYS.includes(groupKey)) {
+    orRows.push(`FIND_IN_SET(?, REPLACE(REPLACE(IFNULL(${groupKey}, ''), '，', ','), ' ', '')) > 0`);
+    params.push(name);
+  }
+}
+
 function addTagFilterConditions(conditions, params, tagFilterMap = {}) {
   const map = normalizeFilterMap(tagFilterMap);
   Object.keys(map).forEach((groupKey) => {
@@ -363,8 +377,7 @@ function addTagFilterConditions(conditions, params, tagFilterMap = {}) {
     if (!names.length) return;
     const orRows = [];
     names.forEach((name) => {
-      orRows.push("JSON_SEARCH(CAST(IFNULL(NULLIF(filter_tags_json, ''), '{}') AS JSON), 'one', ?, NULL, ?) IS NOT NULL");
-      params.push(name, `$."${groupKey}"[*]`);
+      pushTagMatchCondition(orRows, params, groupKey, name);
     });
     if (orRows.length) conditions.push(`(${orRows.join(' OR ')})`);
   });
@@ -390,8 +403,9 @@ async function getFilterStat({ keyword = '', tagFilters = {} }) {
       const otherMap = { ...selectedMap };
       delete otherMap[group.key];
       addTagFilterConditions(conds, params, otherMap);
-      conds.push("JSON_SEARCH(CAST(IFNULL(NULLIF(filter_tags_json, ''), '{}') AS JSON), 'one', ?, NULL, ?) IS NOT NULL");
-      params.push(tag.name, `$."${group.key}"[*]`);
+      const matchRows = [];
+      pushTagMatchCondition(matchRows, params, group.key, tag.name);
+      conds.push(`(${matchRows.join(' OR ')})`);
       const [rows] = await pool.query(
         `SELECT COUNT(*) AS total FROM ${ITEM_TABLE} WHERE ${conds.join(' AND ')}`,
         params

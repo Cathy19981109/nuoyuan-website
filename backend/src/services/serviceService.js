@@ -2,6 +2,13 @@ const pool = require('../config/db');
 const { buildTree } = require('../utils/tree');
 const { paginate } = require('../utils/response');
 const serviceFilterService = require('./serviceFilterService');
+const {
+  parseSpecOptions,
+  normalizeVariants,
+  normalizeDetailMedia,
+  normalizeSpecDocs,
+  deriveSpecTextFromVariants,
+} = require('../utils/variantHelpers');
 
 async function getPublicCategoryTree() {
   const [rows] = await pool.query(
@@ -139,20 +146,18 @@ async function getPublicServices({
   const [countRows] = await pool.query(`SELECT COUNT(*) AS total FROM nuoyuan_service ${where}`, params);
   const total = countRows[0].total;
 
-  const selectFields = ['id', 'service_code AS product_code', 'goods_code', 'category_id', 'name', 'en_name', 'short_desc', 'spec_text', 'cover_image', 'video_url', 'is_hot', 'sort', 'view_count', 'product_type', 'app_type', 'level_tag', 'filter_tags_json'];
+  const selectFields = [
+    'id', 'service_code AS product_code', 'goods_code', 'category_id', 'name', 'en_name', 'short_desc', 'spec_text',
+    'cover_image', 'video_url', 'is_hot', 'sort', 'view_count',
+    'product_type', 'app_type', 'level_tag', 'filter_tags_json', 'variants_json',
+  ];
   const [rows] = await pool.query(
     `SELECT ${selectFields.join(', ')}
      FROM nuoyuan_service ${where} ORDER BY sort ASC, id DESC LIMIT ? OFFSET ?`,
     [...params, parseInt(pageSize, 10), offset]
   );
 
-  return paginate(rows.map((row) => ({
-    ...row,
-    filter_tags: serviceFilterService.parseSelectionMapFromRow(row),
-    product_type_list: serviceFilterService.parseSelectionMapFromRow(row).product_type || [],
-    app_type_list: serviceFilterService.parseSelectionMapFromRow(row).app_type || [],
-    level_tag_list: serviceFilterService.parseSelectionMapFromRow(row).level_tag || [],
-  })), total, page, pageSize);
+  return paginate(rows.map(parseServiceRow), total, page, pageSize);
 }
 
 async function getAdminServices({ categoryId, status, keyword, productType, appType, levelTag, page = 1, pageSize = 20 }) {
@@ -183,27 +188,15 @@ async function getAdminServices({ categoryId, status, keyword, productType, appT
   const [countRows] = await pool.query(`SELECT COUNT(*) AS total FROM nuoyuan_service ${where}`, params);
   const total = countRows[0].total;
 
-  const selectFields = [
-    'id', 'service_code AS product_code', 'goods_code', 'category_id', 'name', 'en_name', 'short_desc', 'spec_text', 'core_advantage',
-    'content', 'detail_richtext', 'cover_image', 'banner_image', 'gallery_json', 'video_url', 'product_type', 'app_type', 'level_tag', 'filter_tags_json', 'sort', 'is_hot', 'status', 'view_count', 'created_at', 'updated_at',
-  ];
   const [rows] = await pool.query(
-    `SELECT ${selectFields.join(', ')}
-     FROM nuoyuan_service ${where} ORDER BY sort ASC, id DESC LIMIT ? OFFSET ?`,
+    `SELECT * FROM nuoyuan_service ${where} ORDER BY sort ASC, id DESC LIMIT ? OFFSET ?`,
     [...params, parseInt(pageSize, 10), offset]
   );
 
-  return paginate(rows.map((row) => {
-    const map = serviceFilterService.parseSelectionMapFromRow(row);
-    return {
-      ...row,
-      gallery_json: parseGallery(row.gallery_json),
-      filter_tags: map,
-      product_type_list: map.product_type || [],
-      app_type_list: map.app_type || [],
-      level_tag_list: map.level_tag || [],
-    };
-  }), total, page, pageSize);
+  return paginate(rows.map((row) => parseServiceRow({
+    ...row,
+    product_code: row.service_code,
+  })), total, page, pageSize);
 }
 
 function parseGallery(raw) {
@@ -214,12 +207,29 @@ function parseGallery(raw) {
   }
 }
 
+function parseServiceRow(row) {
+  const variants = normalizeVariants(row.variants_json);
+  const activeVariants = variants.filter((v) => v.status !== 0);
+  const map = serviceFilterService.parseSelectionMapFromRow(row);
+  const legacySpecs = parseSpecOptions(row.spec_text);
+  return {
+    ...row,
+    product_code: row.product_code || row.service_code,
+    gallery_json: parseGallery(row.gallery_json),
+    variants,
+    detail_media: normalizeDetailMedia(row.detail_media_json),
+    spec_docs: normalizeSpecDocs(row.spec_docs_json),
+    filter_tags: map,
+    product_type_list: map.product_type || [],
+    app_type_list: map.app_type || [],
+    level_tag_list: map.level_tag || [],
+    spec_options: activeVariants.length ? activeVariants.map((v) => v.name) : legacySpecs,
+  };
+}
+
 async function getPublicService(id) {
   const [rows] = await pool.query(
-    `SELECT
-      id, service_code AS product_code, goods_code, category_id, name, en_name, short_desc, spec_text, core_advantage,
-      content, detail_richtext, cover_image, banner_image, gallery_json, video_url, product_type, app_type, level_tag, filter_tags_json, sort, is_hot, status, view_count, created_at, updated_at
-     FROM nuoyuan_service WHERE id = ? AND status = 1`,
+    `SELECT * FROM nuoyuan_service WHERE id = ? AND status = 1`,
     [id]
   );
   if (rows[0]) {
@@ -227,35 +237,13 @@ async function getPublicService(id) {
     rows[0].view_count += 1;
   }
   if (!rows[0]) return null;
-  const map = serviceFilterService.parseSelectionMapFromRow(rows[0]);
-  return {
-    ...rows[0],
-    gallery_json: parseGallery(rows[0].gallery_json),
-    filter_tags: map,
-    product_type_list: map.product_type || [],
-    app_type_list: map.app_type || [],
-    level_tag_list: map.level_tag || [],
-  };
+  return parseServiceRow({ ...rows[0], product_code: rows[0].service_code });
 }
 
 async function getServiceById(id) {
-  const [rows] = await pool.query(
-    `SELECT
-      id, service_code AS product_code, goods_code, category_id, name, en_name, short_desc, spec_text, core_advantage,
-      content, detail_richtext, cover_image, banner_image, gallery_json, video_url, product_type, app_type, level_tag, filter_tags_json, sort, is_hot, status, view_count, created_at, updated_at
-     FROM nuoyuan_service WHERE id = ?`,
-    [id]
-  );
+  const [rows] = await pool.query(`SELECT * FROM nuoyuan_service WHERE id = ?`, [id]);
   if (!rows[0]) return null;
-  const map = serviceFilterService.parseSelectionMapFromRow(rows[0]);
-  return {
-    ...rows[0],
-    gallery_json: parseGallery(rows[0].gallery_json),
-    filter_tags: map,
-    product_type_list: map.product_type || [],
-    app_type_list: map.app_type || [],
-    level_tag_list: map.level_tag || [],
-  };
+  return parseServiceRow({ ...rows[0], product_code: rows[0].service_code });
 }
 
 async function createService(data) {
@@ -264,6 +252,7 @@ async function createService(data) {
     cover_image, banner_image, sort = 0, is_hot = 0, status = 1,
     goods_code, spec_text, detail_richtext, gallery_json, video_url,
     product_type, app_type, level_tag, filter_tags,
+    variants, variants_json, detail_media, detail_media_json, spec_docs, spec_docs_json,
   } = data;
   const normalizedMap = serviceFilterService.normalizeFilterMap({
     ...serviceFilterService.normalizeFilterMap(filter_tags),
@@ -272,10 +261,27 @@ async function createService(data) {
     level_tag,
   });
   await serviceFilterService.validateRequiredSelections(normalizedMap);
+  const normalizedVariants = normalizeVariants(variants !== undefined ? variants : variants_json);
+  const normalizedMedia = normalizeDetailMedia(detail_media !== undefined ? detail_media : detail_media_json);
+  const normalizedDocs = normalizeSpecDocs(spec_docs !== undefined ? spec_docs : spec_docs_json);
+  const syncedSpecText = normalizedVariants.length
+    ? deriveSpecTextFromVariants(normalizedVariants)
+    : (spec_text || null);
   const [nextRows] = await pool.query('SELECT IFNULL(MAX(id), 0) + 1 AS nextId FROM nuoyuan_service');
   const serviceCode = String(nextRows[0].nextId).padStart(5, '0');
-  const cols = ['service_code', 'goods_code', 'category_id', 'name', 'en_name', 'short_desc', 'spec_text', 'core_advantage', 'content', 'detail_richtext', 'cover_image', 'banner_image', 'gallery_json', 'video_url', 'product_type', 'app_type', 'level_tag', 'filter_tags_json', 'sort', 'is_hot', 'status'];
-  const vals = [serviceCode, goods_code || null, category_id, name, en_name || null, short_desc, spec_text || null, core_advantage || null, content || null, detail_richtext || null, cover_image || null, banner_image || null, JSON.stringify(gallery_json || []), video_url || null, (normalizedMap.product_type || []).join(','), (normalizedMap.app_type || []).join(','), (normalizedMap.level_tag || []).join(','), JSON.stringify(normalizedMap), sort, is_hot, status];
+  const cols = [
+    'service_code', 'goods_code', 'category_id', 'name', 'en_name', 'short_desc', 'spec_text', 'variants_json',
+    'core_advantage', 'content', 'detail_richtext', 'detail_media_json', 'spec_docs_json',
+    'cover_image', 'banner_image', 'gallery_json', 'video_url', 'product_type', 'app_type', 'level_tag', 'filter_tags_json', 'sort', 'is_hot', 'status',
+  ];
+  const vals = [
+    serviceCode, goods_code || null, category_id, name, en_name || null, short_desc, syncedSpecText,
+    JSON.stringify(normalizedVariants), core_advantage || null, content || null, detail_richtext || null,
+    JSON.stringify(normalizedMedia), JSON.stringify(normalizedDocs),
+    cover_image || null, banner_image || null, JSON.stringify(gallery_json || []), video_url || null,
+    (normalizedMap.product_type || []).join(','), (normalizedMap.app_type || []).join(','), (normalizedMap.level_tag || []).join(','),
+    JSON.stringify(normalizedMap), sort, is_hot, status,
+  ];
   const [result] = await pool.query(
     `INSERT INTO nuoyuan_service (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
     vals
@@ -290,6 +296,24 @@ async function updateService(id, data) {
   if (data.gallery_json !== undefined) {
     fields.push('gallery_json = ?');
     values.push(JSON.stringify(data.gallery_json || []));
+  }
+  const hasVariantInput = data.variants !== undefined || data.variants_json !== undefined;
+  if (hasVariantInput) {
+    const normalizedVariants = normalizeVariants(data.variants !== undefined ? data.variants : data.variants_json);
+    fields.push('variants_json = ?');
+    values.push(JSON.stringify(normalizedVariants));
+    if (data.spec_text === undefined) {
+      fields.push('spec_text = ?');
+      values.push(deriveSpecTextFromVariants(normalizedVariants) || null);
+    }
+  }
+  if (data.detail_media !== undefined || data.detail_media_json !== undefined) {
+    fields.push('detail_media_json = ?');
+    values.push(JSON.stringify(normalizeDetailMedia(data.detail_media !== undefined ? data.detail_media : data.detail_media_json)));
+  }
+  if (data.spec_docs !== undefined || data.spec_docs_json !== undefined) {
+    fields.push('spec_docs_json = ?');
+    values.push(JSON.stringify(normalizeSpecDocs(data.spec_docs !== undefined ? data.spec_docs : data.spec_docs_json)));
   }
   const hasSelectionChange = data.filter_tags !== undefined
     || data.product_type !== undefined
