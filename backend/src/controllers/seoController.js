@@ -57,6 +57,25 @@ async function saveProduct(req, res, next) {
   }
 }
 
+async function listService(req, res, next) {
+  try {
+    const data = await seoService.listServiceSeo(req.query || {});
+    return success(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function saveService(req, res, next) {
+  try {
+    const data = await seoService.saveServiceSeo(req.params.id, req.body || {});
+    if (!data) return fail(res, '服务不存在', 404, 404);
+    return success(res, data, '服务SEO已保存');
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function listNews(req, res, next) {
   try {
     const data = await seoService.listNewsSeo(req.query || {});
@@ -71,6 +90,16 @@ async function saveNews(req, res, next) {
     const data = await seoService.saveNewsSeo(req.params.id, req.body || {});
     if (!data) return fail(res, '资讯不存在', 404, 404);
     return success(res, data, '资讯SEO已保存');
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function autoSync(req, res, next) {
+  try {
+    const mode = String(req.body?.mode || req.query?.mode || 'fill_empty');
+    const data = await seoService.autoSyncSeo({ mode });
+    return success(res, data, 'SEO已从内容自动同步');
   } catch (err) {
     next(err);
   }
@@ -92,7 +121,10 @@ module.exports = {
   savePage,
   listProduct,
   saveProduct,
+  listService,
+  saveService,
   listNews,
   saveNews,
+  autoSync,
   getPublicMeta,
 };

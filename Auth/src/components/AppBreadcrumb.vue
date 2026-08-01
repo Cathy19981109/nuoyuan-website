@@ -1,16 +1,18 @@
 <template>
-  <div class="breadcrumb-wrap">
-    <button
-      v-for="(item, idx) in crumbs"
-      :key="`${item.label}-${idx}`"
-      class="crumb-btn"
-      :class="{ current: idx === crumbs.length - 1 }"
-      @click="go(item, idx)"
-    >
-      <span>{{ item.label }}</span>
-      <span v-if="idx < crumbs.length - 1" class="sep">></span>
-    </button>
-  </div>
+  <nav class="breadcrumb-wrap" aria-label="面包屑">
+    <template v-for="(item, idx) in crumbs" :key="`${item.label}-${idx}`">
+      <span v-if="idx > 0" class="sep" aria-hidden="true">/</span>
+      <button
+        v-if="idx < crumbs.length - 1 && item.to"
+        type="button"
+        class="crumb-btn"
+        @click="router.push(item.to)"
+      >
+        {{ item.label }}
+      </button>
+      <span v-else class="crumb-current">{{ item.label }}</span>
+    </template>
+  </nav>
 </template>
 
 <script setup>
@@ -25,11 +27,6 @@ const crumbs = computed(() => {
   if (list.length) return list
   return [{ label: route.meta?.title || '当前页面', to: route.fullPath }]
 })
-
-function go(item, idx) {
-  if (idx === crumbs.value.length - 1) return
-  if (item.to) router.push(item.to)
-}
 </script>
 
 <style scoped>
@@ -37,27 +34,38 @@ function go(item, idx) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin: 0;
+  width: 100%;
+  line-height: 1.5;
+  letter-spacing: normal;
+  white-space: normal;
 }
 .crumb-btn {
   border: none;
   background: transparent;
   color: #64748b;
   font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  font-family: inherit;
+  line-height: 1.5;
+  letter-spacing: normal;
   cursor: pointer;
-  padding: 2px 0;
+  padding: 0;
 }
-.crumb-btn.current {
+.crumb-btn:hover {
+  color: #2563eb;
+}
+.crumb-current {
   color: #0f172a;
+  font-size: 13px;
   font-weight: 600;
-  cursor: default;
+  line-height: 1.5;
+  letter-spacing: normal;
 }
 .sep {
   color: #94a3b8;
-  margin-left: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  user-select: none;
 }
 </style>

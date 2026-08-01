@@ -2,7 +2,7 @@
   <div>
     <div class="page-header">
       <div>
-        <h2>导航管理</h2>
+        <h2>顶部导航编辑</h2>
         <p class="desc">管理网站顶部导航菜单（仅顶级菜单，无下拉子菜单）</p>
       </div>
       <button class="btn btn-primary" @click="openForm()">新增导航</button>

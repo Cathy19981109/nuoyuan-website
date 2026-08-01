@@ -58,9 +58,10 @@ export function useCatalogModules(pageModules, options = {}) {
     return !!key && excludeKeys.has(key)
   }
 
-  /** Full-bleed images are folded into CatalogHeroBanner, not listed again. */
+  /** Only the page Banner is absorbed into hero; other full-width images still render below. */
   function isHeroAbsorbedModule(row) {
-    return row?.module_template === 'full_width_single_image'
+    if (row?.module_template !== 'full_width_single_image') return false
+    return isBannerModule(row)
   }
 
   function isChildModule(row) {
@@ -98,7 +99,7 @@ export function useCatalogModules(pageModules, options = {}) {
   })
 
   const modulesAfterList = computed(() => {
-    if (listModuleIndex.value < 0) return normalModules.value
+    if (listModuleIndex.value < 0) return []
     return pageModules.value
       .slice(listModuleIndex.value + 1)
       .filter((m) => isTopLevelContent(m))

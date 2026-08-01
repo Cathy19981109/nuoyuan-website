@@ -36,28 +36,42 @@ const menuItems = computed(() => {
   if (props.navList.length) {
     return props.navList
       .filter((item) => !item.parent_id || Number(item.parent_id) === 0)
-      .map((item) => ({
-        ...item,
-        path: item.link_url || navRouteMap[item.name] || '/',
-      }))
+      .map((item) => {
+        const path = resolveNavPath(item)
+        return {
+          ...item,
+          path,
+          external: isExternalUrl(path) || String(item.target || '') === '_blank',
+        }
+      })
   }
   return Object.entries(navRouteMap).map(([name, path], index) => ({
     id: index,
     name,
     path,
+    external: false,
   }))
 })
 
+function isExternalUrl(url) {
+  return /^https?:\/\//i.test(String(url || '').trim())
+}
+
+function resolveNavPath(item) {
+  const link = String(item?.link_url || '').trim()
+  if (link) return link
+  const pageKey = String(item?.page_nav_name || '').trim()
+  if (pageKey) return pageKey === 'home' ? '/' : `/${pageKey}`
+  if (navRouteMap[item?.name]) return navRouteMap[item.name]
+  return '/'
+}
+
 const groupedSuggestions = computed(() => {
   const groups = []
-  const order = ['product', 'service', 'module', 'news', 'application', 'page']
+  const order = ['product', 'service']
   const labelMap = {
     product: '产品',
     service: '服务',
-    module: '内容板块',
-    news: '新闻',
-    application: '应用',
-    page: '页面',
   }
   order.forEach((type) => {
     const items = suggestions.value.filter((s) => s.type === type)
@@ -69,6 +83,7 @@ const groupedSuggestions = computed(() => {
 })
 
 function isActive(path) {
+  if (!path || isExternalUrl(path)) return false
   if (path === '/') return route.path === '/'
   return route.path.startsWith(path)
 }
@@ -185,16 +200,28 @@ onBeforeUnmount(() => {
       </router-link>
 
       <nav class="nav" :class="{ open: mobileMenuOpen }">
-        <router-link
-          v-for="item in menuItems"
-          :key="item.id"
-          :to="item.path"
-          class="nav-item"
-          :class="{ active: isActive(item.path) }"
-          @click="mobileMenuOpen = false"
-        >
-          {{ String(item.name || '').slice(0, 4) }}
-        </router-link>
+        <template v-for="item in menuItems" :key="item.id">
+          <a
+            v-if="item.external"
+            :href="item.path"
+            class="nav-item"
+            :class="{ active: isActive(item.path) }"
+            :target="String(item.target || '_blank')"
+            rel="noopener noreferrer"
+            @click="mobileMenuOpen = false"
+          >
+            {{ String(item.name || '').slice(0, 4) }}
+          </a>
+          <router-link
+            v-else
+            :to="item.path"
+            class="nav-item"
+            :class="{ active: isActive(item.path) }"
+            @click="mobileMenuOpen = false"
+          >
+            {{ String(item.name || '').slice(0, 4) }}
+          </router-link>
+        </template>
       </nav>
 
       <div class="actions">
@@ -217,7 +244,7 @@ onBeforeUnmount(() => {
             ref="searchInputRef"
             v-model="searchKeyword"
             type="text"
-            placeholder="搜索产品、服务、内容板块、新闻..."
+            placeholder="搜索产品、服务..."
             @input="onSearchInput"
             @focus="onSearchInput"
             @keyup.enter="goSearch"
@@ -281,10 +308,10 @@ onBeforeUnmount(() => {
 
 .logo-img {
   display: block;
+  height: 44px;
   width: auto;
-  height: auto;
-  max-height: 44px;
-  max-width: min(280px, 48vw);
+  max-width: min(320px, 55vw);
+  aspect-ratio: auto;
   object-fit: contain;
   object-position: left center;
   flex-shrink: 0;

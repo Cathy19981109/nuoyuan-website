@@ -54,17 +54,45 @@
             </div>
           </div>
 
-          <div v-else-if="item.module_template === 'single_video_module'" class="video-box">
+          <div v-else-if="item.module_template === 'single_video_module'" class="video-box" :class="`layout-${normalizeLayout(item, 'bottom')}`">
             <video v-if="item.video_url" controls :src="toPublicUrl(item.video_url)" />
-            <h3>{{ item.main_title }}</h3>
-            <p>{{ item.body_text }}</p>
+            <div v-if="item.main_title || item.body_text" class="video-text">
+              <h3 v-if="item.main_title">{{ item.main_title }}</h3>
+              <p v-if="item.body_text">{{ item.body_text }}</p>
+            </div>
           </div>
 
-          <div v-else-if="item.module_template === 'image_jump_button'" class="jump-box">
-            <img v-if="firstImage(item)" :src="toPublicUrl(firstImage(item))" :alt="item.module_name" @error="onImgError" />
+          <div
+            v-else-if="item.module_template === 'image_jump_button'"
+            class="jump-box"
+            :class="[
+              `layout-${normalizeLayout(item, 'bottom')}`,
+              { 'is-centered-jump': contentAlign === 'center' },
+            ]"
+          >
+            <div v-if="item.main_title || item.body_text" class="jump-text">
+              <h3 v-if="item.main_title">{{ item.main_title }}</h3>
+              <p v-if="item.body_text">{{ item.body_text }}</p>
+            </div>
+            <img
+              v-if="firstImage(item)"
+              :src="toPublicUrl(firstImage(item))"
+              :alt="item.main_title || item.module_name"
+              @error="onImgError"
+            />
             <div class="jump-actions">
-              <a v-if="item.jump_type === 'external' && item.link_url" :href="item.link_url" target="_blank" class="btn btn-primary">查看详情</a>
-              <router-link v-else-if="item.jump_type === 'product' && item.jump_product_code" :to="`/search?keyword=${encodeURIComponent(item.jump_product_code)}`" class="btn btn-primary">查看产品</router-link>
+              <a
+                v-if="isExternalJump(item)"
+                :href="item.link_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary"
+              >{{ jumpButtonText(item) }}</a>
+              <router-link
+                v-else-if="jumpTarget(item)"
+                :to="jumpTarget(item)"
+                class="btn btn-primary"
+              >{{ jumpButtonText(item) }}</router-link>
             </div>
           </div>
         </div>
@@ -132,6 +160,35 @@ function firstImage(item) {
   if (!list.length) return ''
   const first = list[0]
   return typeof first === 'string' ? first : (first.url || '')
+}
+
+function jumpButtonText(item) {
+  const fromExtra = String(item?.extra_json?.button_text || '').trim()
+  if (fromExtra) return fromExtra
+  const type = String(item?.jump_type || '')
+  if (type === 'catalog' || type === 'product') return '查看详情'
+  return '查看详情'
+}
+
+function isExternalJump(item) {
+  const url = String(item?.link_url || '').trim()
+  if (!url) return false
+  // Only absolute http(s) links open in a new tab; relative paths stay in SPA
+  return /^https?:\/\//i.test(url)
+}
+
+function jumpTarget(item) {
+  const url = String(item?.link_url || '').trim()
+  if (url) return url
+  const extra = item?.extra_json || {}
+  const id = Number(extra.catalog_id || 0)
+  const kind = String(extra.catalog_kind || '')
+  if (id > 0 && (kind === 'service' || kind === 'product')) {
+    return kind === 'service' ? `/services/${id}` : `/products/${id}`
+  }
+  const code = String(item?.jump_product_code || '').trim()
+  if (code) return `/search?keyword=${encodeURIComponent(code)}`
+  return ''
 }
 
 function toPublicUrl(url) {
@@ -204,8 +261,46 @@ function onImgError(event) {
 .carousel-text h3 { margin-bottom: 8px; color: #0b2d5c; }
 .carousel-text p { color: #475569; line-height: 1.8; }
 .video-box video { width: 100%; border-radius: 12px; margin-bottom: 12px; display: block; }
+.video-box .video-text h3 { margin-bottom: 8px; color: #0b2d5c; }
+.video-box .video-text p { color: #475569; line-height: 1.8; }
+.video-box.layout-top {
+  display: flex;
+  flex-direction: column;
+}
+.video-box.layout-top .video-text { order: 1; margin-bottom: 12px; }
+.video-box.layout-top video { order: 2; margin-bottom: 0; }
 .jump-box img { width: 100%; border-radius: 12px; margin-bottom: 12px; display: block; }
-.jump-actions { display: flex; justify-content: center; }
+.jump-text {
+  margin-bottom: 20px;
+}
+.jump-text h3 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  color: #0b2d5c;
+}
+.jump-text p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.7;
+  font-size: 15px;
+}
+.jump-box.is-centered-jump,
+.jump-box.is-centered-jump .jump-text {
+  text-align: center;
+}
+.jump-actions { display: flex; justify-content: center; margin-top: 8px; }
+.jump-box.layout-left {
+  display: grid;
+  grid-template-columns: 7fr 3fr;
+  gap: 24px;
+  align-items: center;
+}
+.jump-box.layout-left .jump-text {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+.jump-box.layout-left img { margin-bottom: 0; }
+.jump-box.layout-left .jump-actions { justify-content: flex-start; }
 
 @media (max-width: 768px) {
   .image-text.layout-left,
@@ -216,5 +311,8 @@ function onImgError(event) {
   .image-text.layout-right .text-box { order: 1; }
   .image-text.layout-left .img-box,
   .image-text.layout-right .img-box { order: 2; }
+  .jump-box.layout-left {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -302,7 +302,10 @@ router.get('/seo/pages', seoController.getPageList);
 router.put('/seo/pages/:id', seoController.savePage);
 router.get('/seo/products', seoController.listProduct);
 router.put('/seo/products/:id', seoController.saveProduct);
+router.get('/seo/services', seoController.listService);
+router.put('/seo/services/:id', seoController.saveService);
 router.get('/seo/news', seoController.listNews);
 router.put('/seo/news/:id', seoController.saveNews);
+router.post('/seo/auto-sync', seoController.autoSync);
 
 module.exports = router;

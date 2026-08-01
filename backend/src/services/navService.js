@@ -10,7 +10,12 @@ function toNavRow(row) {
 
 async function getPublicNavTree() {
   const [rows] = await pool.query(
-    'SELECT id, parent_id, name, en_name, page_id, link_url, target, sort FROM nuoyuan_nav WHERE status = 1 AND parent_id = 0 ORDER BY sort ASC, id ASC'
+    `SELECT n.id, n.parent_id, n.name, n.en_name, n.page_id, n.link_url, n.target, n.sort,
+            p.nav_name AS page_nav_name, p.title AS page_title
+     FROM nuoyuan_nav n
+     LEFT JOIN nuoyuan_page p ON p.id = n.page_id AND p.status = 1
+     WHERE n.status = 1 AND n.parent_id = 0
+     ORDER BY n.sort ASC, n.id ASC`
   );
   return rows.map(toNavRow);
 }

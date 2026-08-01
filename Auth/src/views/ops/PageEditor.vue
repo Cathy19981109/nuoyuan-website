@@ -401,7 +401,7 @@ const templateForms = {
   full_width_single_image: { showImageUploader: true, imageRequired: true, imageMultiple: false },
   image_text_split: { showMainTitle: true, mainTitleRequired: true, showBodyText: true, bodyTextRequired: true, showImageUploader: true, imageRequired: true, imageMultiple: false, showLayoutMode: true },
   multi_image_carousel: { showImageUploader: true, imageRequired: true, imageMultiple: true },
-  single_video_module: { showMainTitle: true, mainTitleRequired: true, showBodyText: true, bodyTextRequired: true, showVideoUploader: true },
+  single_video_module: { showMainTitle: true, mainTitleRequired: true, showBodyText: true, bodyTextRequired: false, showVideoUploader: true },
   image_jump_button: { showImageUploader: true, imageRequired: true, imageMultiple: false, showLink: true, linkRequired: true },
 }
 const currentTemplateForm = computed(() => templateForms[form.value.module_template] || { showImageUploader: true, imageRequired: true, imageMultiple: false })

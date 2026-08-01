@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>官网信息</h2>
-        <p class="desc">统一维护品牌 Logo 与发信邮箱配置</p>
+        <p class="desc">先编辑内容；编辑完成后在「网站开放」中改为开放，访客即可看到官网。关闭期间可用「前台预览」自查。</p>
       </div>
       <button class="btn btn-primary" :disabled="saving" @click="saveAll">{{ saving ? '保存中...' : '保存官网信息' }}</button>
     </div>
@@ -14,8 +14,19 @@
         <div class="form-stack">
           <div class="form-group" v-for="item in allItems" :key="item.key">
             <label><span v-if="item.required" class="required">*</span>{{ item.label }}</label>
+            <select
+              v-if="item.inputType === 'select'"
+              v-model="form[item.key]"
+              class="form-control"
+            >
+              <option
+                v-for="opt in (item.options || [])"
+                :key="opt.value"
+                :value="opt.value"
+              >{{ opt.label }}</option>
+            </select>
             <textarea
-              v-if="item.inputType === 'textarea'"
+              v-else-if="item.inputType === 'textarea'"
               v-model="form[item.key]"
               class="form-control"
               rows="3"
@@ -32,13 +43,17 @@
               v-else
               v-model="form[item.key]"
               :upload-fn="(file) => processImageForKey(file, item.key, true)"
+              :class="{
+                'logo-upload': item.key === 'brand_logo',
+                'icon-upload': item.key === 'icon_logo',
+              }"
             />
             <div class="hint" v-if="item.tips">{{ item.tips }}</div>
             <div class="hint" v-if="item.uploadRule">{{ item.uploadRule }}</div>
           </div>
         </div>
-        <div style="margin-top: 10px">
-          <button class="btn btn-secondary" @click="openPreview">前台预览</button>
+        <div class="site-actions">
+          <button class="btn btn-secondary" @click="openPreview">前台预览（关闭时也可看）</button>
         </div>
       </template>
     </div>
@@ -81,6 +96,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { getSiteCenter, saveSiteCenter, uploadImageFile } from '@/api'
 import ImageUploadField from '@/components/ImageUploadField.vue'
+import { toPublicMediaUrl } from '@/utils/media'
+import { applyFavicon } from '@/utils/favicon'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -96,7 +113,9 @@ const imageEditorMime = ref('image/jpeg')
 const imageEditorRatio = 1
 
 const allItems = computed(() =>
-  groups.value.flatMap((g) => (g.items || []).map((i) => ({ ...i, groupTitle: g.title })))
+  groups.value
+    .filter((g) => g.key !== 'footer_meta')
+    .flatMap((g) => (g.items || []).map((i) => ({ ...i, groupTitle: g.title })))
 )
 const cropImageStyle = computed(() => {
   const tx = imageEditorOffset.value.x * 120
@@ -126,13 +145,18 @@ async function loadData() {
 }
 
 async function saveAll() {
+  if (!String(form.value.icon_logo || '').trim()) {
+    alert('请上传纯图片 Logo（显示在浏览器标签缩略图）')
+    return
+  }
   if (!String(form.value.brand_logo || '').trim()) {
-    alert('请上传品牌 Logo（需包含品牌名的图片）')
+    alert('请上传文字 Logo（显示在页面左上角）')
     return
   }
   saving.value = true
   try {
     await saveSiteCenter(form.value)
+    applyFavicon(toPublicMediaUrl(form.value.icon_logo) || '/favicon.png')
     await loadData()
     alert('已保存')
   } catch (e) {
@@ -143,7 +167,7 @@ async function saveAll() {
 }
 
 function openPreview() {
-  window.open('http://localhost:5173/', '_blank')
+  window.open('http://localhost:5173/?preview=1', '_blank')
 }
 
 onMounted(loadData)
@@ -153,8 +177,8 @@ async function processImageForKey(file, key, returnUrl = false) {
     alert('仅支持 png/jpg/webp 格式')
     return ''
   }
-  // 品牌 Logo 为横向「图标+品牌名」图，不做 1:1 强制裁剪
-  if (key === 'brand_logo') {
+  // Logo 图不做 1:1 强制裁剪（纯图标虽建议正方形，但仍允许原图直传）
+  if (key === 'brand_logo' || key === 'icon_logo') {
     const uploadFile = file.size > 50 * 1024 * 1024 ? await compressToLimit(file, 50 * 1024 * 1024) : file
     const fd = new FormData()
     fd.append('file', uploadFile, file.name)
@@ -284,8 +308,29 @@ async function confirmImageEditor() {
 <style scoped>
 .required { color: #dc2626; margin-right: 4px; font-weight: 700; }
 .form-stack { display: grid; gap: 12px; }
+.site-actions { margin-top: 14px; }
 .upload-box { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; }
 .preview { margin-top: 8px; max-width: 120px; border-radius: 6px; display: block; }
+:deep(.logo-upload .preview) {
+  max-width: min(420px, 100%);
+  max-height: 120px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  background: #0b2d5c;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+:deep(.icon-upload .preview) {
+  max-width: 96px;
+  max-height: 96px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  background: #0b2d5c;
+  border-radius: 8px;
+  padding: 8px;
+}
 .crop-stage {
   width: 100%;
   max-width: 520px;

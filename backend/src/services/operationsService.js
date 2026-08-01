@@ -2,28 +2,88 @@ const pool = require('../config/db');
 
 const SITE_CENTER_GROUPS = [
   {
+    key: 'site_publish',
+    title: '网站开放',
+    items: [
+      {
+        label: '对外开放',
+        key: 'site_public_open',
+        inputType: 'select',
+        options: [
+          { value: '0', label: '关闭（仅后台可编辑，前台显示「即将上线」）' },
+          { value: '1', label: '开放（访客可正常浏览官网）' },
+        ],
+        tips: '建议内容编辑完成后再改为「开放」。关闭期间可通过「前台预览」查看效果，不影响访客看到的关闭页。',
+      },
+    ],
+  },
+  {
     key: 'site_base',
     title: '官网信息',
     items: [
       {
-        label: '品牌Logo',
+        label: '纯图片 Logo',
+        key: 'icon_logo',
+        inputType: 'image',
+        required: true,
+        tips: '显示位置：浏览器标签页缩略图（favicon），前台与管理后台共用。请上传不含文字的图标（透明底 PNG 更佳，建议正方形）。',
+        uploadRule: '推荐透明底 PNG，1:1 构图，建议 128×128～512×512，png/jpg/webp，<=50MB',
+      },
+      {
+        label: '文字 Logo',
         key: 'brand_logo',
         inputType: 'image',
         required: true,
-        tips: '请上传包含品牌名的 Logo 图片（透明底 PNG 更佳）。头部将仅展示该图片，不再单独显示文字品牌名。',
-        uploadRule: '推荐透明底 PNG，横向构图（图标+品牌名），建议高度 80–120px、宽度自适应，png/jpg/webp，<=50MB',
+        tips: '显示位置：网站页面左上角（顶部导航栏品牌位），页脚品牌区同步使用。请上传含品牌名的 Logo（头部深色背景，建议白色字体）。',
+        uploadRule: '推荐透明底 PNG + 白色品牌字，横向构图，建议高度 80–160px、宽度自适应，png/jpg/webp，<=50MB',
       },
+    ],
+  },
+  {
+    key: 'footer_meta',
+    title: '页脚底栏',
+    items: [
       {
         label: '底部版权文字',
         key: 'footer_copyright',
         inputType: 'text',
-        maxLength: 100,
+        maxLength: 200,
+        tips: '如：© 2026 诺元智合 NUOYUAN BIOTECH. All rights reserved.',
       },
       {
         label: 'ICP备案号',
         key: 'icp_no',
         inputType: 'text',
         maxLength: 50,
+        tips: '如：苏ICP备xxxxxxxx号-1，将显示在页脚并链接至工信部备案查询',
+      },
+      {
+        label: '公安备案号',
+        key: 'footer_police_beian',
+        inputType: 'text',
+        maxLength: 80,
+        tips: '如：苏公网安备 xxxxxxxxxx号（选填）',
+      },
+      {
+        label: '营业执照文案',
+        key: 'footer_license_text',
+        inputType: 'text',
+        maxLength: 40,
+        tips: '如：营业执照（选填）',
+      },
+      {
+        label: '营业执照链接',
+        key: 'footer_license_url',
+        inputType: 'text',
+        maxLength: 300,
+        tips: '点击「营业执照」跳转的地址（选填）',
+      },
+      {
+        label: '底栏补充说明',
+        key: 'footer_region_note',
+        inputType: 'text',
+        maxLength: 100,
+        tips: '如：本网站所有信息仅针对中国地区客户（选填）',
       },
     ],
   },
@@ -90,11 +150,12 @@ async function getSiteCenter() {
         key: item.key,
         label: item.label,
         inputType: item.inputType,
-        value: value || '',
+        value: value || (item.key === 'site_public_open' ? '0' : ''),
         required: !!item.required,
         maxLength: item.maxLength || null,
         tips: item.tips || '',
         uploadRule: item.uploadRule || '',
+        options: item.options || null,
       });
     }
     groups.push({ title: group.title, key: group.key, items });
@@ -114,15 +175,38 @@ async function updateSiteCenter(payload = {}) {
     if (!byKey[key]) continue;
     let value = rawValue;
     if (key === 'footer_copyright' && typeof value === 'string') {
-      value = value.slice(0, 100);
+      value = value.slice(0, byKey[key].maxLength || 200);
+    }
+    if (key === 'icp_no' && typeof value === 'string') {
+      value = value.slice(0, byKey[key].maxLength || 50);
+    }
+    if (key === 'footer_police_beian' && typeof value === 'string') {
+      value = value.slice(0, byKey[key].maxLength || 80);
+    }
+    if (key === 'footer_license_text' && typeof value === 'string') {
+      value = value.slice(0, byKey[key].maxLength || 40);
+    }
+    if (key === 'footer_license_url' && typeof value === 'string') {
+      value = value.slice(0, byKey[key].maxLength || 300);
+    }
+    if (key === 'footer_region_note' && typeof value === 'string') {
+      value = value.slice(0, byKey[key].maxLength || 100);
     }
     await setConfigValue(key, value || '', byKey[key].label, byKey[key].tips || byKey[key].uploadRule || '');
   }
+  const iconLogo = Object.prototype.hasOwnProperty.call(payload, 'icon_logo')
+    ? String(payload.icon_logo || '').trim()
+    : String(await getConfigValue('icon_logo') || '').trim();
   const logo = Object.prototype.hasOwnProperty.call(payload, 'brand_logo')
     ? String(payload.brand_logo || '').trim()
     : String(await getConfigValue('brand_logo') || '').trim();
+  if (!iconLogo) {
+    const err = new Error('请上传纯图片 Logo（浏览器标签缩略图）');
+    err.name = 'ValidationError';
+    throw err;
+  }
   if (!logo) {
-    const err = new Error('请上传品牌 Logo（需包含品牌名的图片）');
+    const err = new Error('请上传文字 Logo（页面左上角）');
     err.name = 'ValidationError';
     throw err;
   }
@@ -138,21 +222,31 @@ async function getFooterBlocks() {
 }
 
 async function createFooterBlock(data) {
+  let sort = Number(data.sort);
+  if (!Number.isFinite(sort)) {
+    const [maxRows] = await pool.query('SELECT COALESCE(MAX(sort), -1) AS max_sort FROM nuoyuan_footer_block');
+    sort = Number(maxRows[0]?.max_sort ?? -1) + 1;
+  }
   const [result] = await pool.query(
     `INSERT INTO nuoyuan_footer_block (title, layout_type, links_json, qrcode_image, copyright_text, sort, status)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
-      data.title,
+      String(data.title || '').trim(),
       data.layout_type || 1,
-      JSON.stringify(data.links || []),
+      JSON.stringify(data.links || data.links_json || []),
       data.qrcode_image || null,
       (data.copyright_text || '').slice(0, 100) || null,
-      data.sort || 0,
+      sort,
       data.status === 0 ? 0 : 1,
     ]
   );
   const [rows] = await pool.query('SELECT * FROM nuoyuan_footer_block WHERE id = ?', [result.insertId]);
-  return rows[0];
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    links_json: row.links_json ? JSON.parse(row.links_json) : [],
+  };
 }
 
 async function updateFooterBlock(id, data) {

@@ -24,12 +24,18 @@ async function seedAdmin() {
 
 async function seedConfig() {
   const configs = [
+    { config_key: 'site_public_open', config_value: '0', name: '网站对外开放', description: '0关闭 1开放；关闭时前台显示即将上线', sort: 0 },
     { config_key: 'site_name', config_value: '诺元智合', name: '网站名称', description: '网站名称', sort: 1 },
     { config_key: 'site_logo', config_value: '', name: '网站Logo', description: 'Logo图片URL', sort: 2 },
-    { config_key: 'brand_logo', config_value: '/uploads/images/brand-logo-nuoyuan.png', name: '品牌Logo', description: '含品牌名的透明底 Logo 图', sort: 2 },
+    { config_key: 'icon_logo', config_value: '/uploads/images/icon-logo-nuoyuan.png', name: '纯图片Logo', description: '浏览器标签缩略图', sort: 2 },
+    { config_key: 'brand_logo', config_value: '/uploads/images/brand-logo-nuoyuan.png', name: '文字Logo', description: '页面左上角品牌图', sort: 2 },
     { config_key: 'inquiry_emails', config_value: '[]', name: '询价接收邮箱', description: '最多10个接收邮箱，JSON数组', sort: 6 },
     { config_key: 'icp_no', config_value: '', name: 'ICP备案号', description: '网站备案号', sort: 7 },
-    { config_key: 'footer_copyright', config_value: '© 诺元智合 NUOYUAN BIOTECH. All rights reserved.', name: '底部版权文案', description: '最多100字符', sort: 8 },
+    { config_key: 'footer_copyright', config_value: '© 诺元智合 NUOYUAN BIOTECH. All rights reserved.', name: '底部版权文案', description: '最多200字符', sort: 8 },
+    { config_key: 'footer_police_beian', config_value: '', name: '公安备案号', description: '页脚公安备案号', sort: 8 },
+    { config_key: 'footer_license_text', config_value: '', name: '营业执照文案', description: '页脚营业执照文案', sort: 8 },
+    { config_key: 'footer_license_url', config_value: '', name: '营业执照链接', description: '页脚营业执照链接', sort: 8 },
+    { config_key: 'footer_region_note', config_value: '', name: '底栏补充说明', description: '页脚区域说明', sort: 8 },
     { config_key: 'seo_global_keywords', config_value: '', name: '全站SEO关键词', description: 'SEO关键词，多个可用逗号分隔', sort: 9 },
     { config_key: 'seo_global_description', config_value: '', name: '全站SEO描述', description: 'SEO描述', sort: 9 },
     { config_key: 'smtp_host', config_value: '', name: 'SMTP服务器', description: '发信服务器地址', sort: 20 },
@@ -103,7 +109,7 @@ async function seedDefaultPageModules() {
     { page_key: 'home', module_name: '首页图文介绍', module_template: 'image_text_split', sort: 2, main_title: '核心服务能力', body_text: '可在后台修改这段介绍文字，支持图文布局。', layout_mode: 'left', image_list_json: JSON.stringify([{ name: 'intro', url: '/uploads/images/demo-home-intro.jpg' }]) },
     { page_key: 'products', module_name: '产品页轮播', module_template: 'multi_image_carousel', sort: 1, image_list_json: JSON.stringify([{ name: 'p1', url: '/uploads/images/demo-products-1.jpg' }]) },
     { page_key: 'services', module_name: '技术服务视频', module_template: 'single_video_module', sort: 1, main_title: '技术服务介绍', body_text: '上传视频后前台自动渲染。', video_url: '/uploads/videos/demo-services.mp4' },
-    { page_key: 'news', module_name: '新闻跳转卡片', module_template: 'image_jump_button', sort: 1, jump_type: 'external', link_url: '/news', image_list_json: JSON.stringify([{ name: 'news', url: '/uploads/images/demo-news.jpg' }]) },
+    { page_key: 'news', module_name: '新闻跳转卡片', module_template: 'image_jump_button', sort: 1, jump_type: 'page', link_url: '/news', main_title: '新闻动态', body_text: '了解最新行业资讯与公司动态', image_list_json: JSON.stringify([]), extra: { button_text: '查看更多新闻' } },
   ];
   for (const row of templateRows) {
     const [exists] = await pool.query(
@@ -120,11 +126,12 @@ async function seedDefaultPageModules() {
       link_url: row.link_url || '',
       jump_type: row.jump_type || '',
       jump_product_code: row.jump_product_code || '',
+      extra: row.extra || {},
     };
     await pool.query(
       `INSERT INTO nuoyuan_page_module
-       (page_key, module_no, module_name, module_template, main_title, body_text, layout_mode, image_list_json, video_url, link_url, jump_type, jump_product_code, module_data, sort, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+       (page_key, module_no, module_name, module_template, main_title, body_text, layout_mode, image_list_json, video_url, link_url, jump_type, jump_product_code, extra_json, module_data, sort, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         row.page_key,
         row.sort,
@@ -138,6 +145,7 @@ async function seedDefaultPageModules() {
         row.link_url || null,
         row.jump_type || null,
         row.jump_product_code || null,
+        JSON.stringify(row.extra || {}),
         JSON.stringify(autoData),
         row.sort,
       ]

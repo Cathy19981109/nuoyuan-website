@@ -112,8 +112,11 @@ export const getSeoPages = () => request.get('/seo/pages')
 export const saveSeoPage = (id, data) => request.put(`/seo/pages/${id}`, data)
 export const getSeoProducts = (params) => request.get('/seo/products', { params })
 export const saveSeoProduct = (id, data) => request.put(`/seo/products/${id}`, data)
+export const getSeoServices = (params) => request.get('/seo/services', { params })
+export const saveSeoService = (id, data) => request.put(`/seo/services/${id}`, data)
 export const getSeoNews = (params) => request.get('/seo/news', { params })
 export const saveSeoNews = (id, data) => request.put(`/seo/news/${id}`, data)
+export const autoSyncSeo = (data) => request.post('/seo/auto-sync', data)
 
 // 导航&底部配置
 export const getFooterBlocks = () => request.get('/footer-blocks')

@@ -17,10 +17,10 @@ async function getPublicCategoryTree() {
   return buildTree(rows);
 }
 
-async function expandNavCategoryIds(rawIds = []) {
+async function expandCategoryIds(rawIds = []) {
   const seed = Array.from(new Set((rawIds || []).map((v) => Number(v)).filter((v) => Number.isInteger(v) && v > 0)));
   if (!seed.length) return [];
-  const [rows] = await pool.query('SELECT id, parent_id FROM nuoyuan_nav');
+  const [rows] = await pool.query('SELECT id, parent_id FROM nuoyuan_service_category');
   if (!rows.length) return seed;
   const childrenMap = new Map();
   rows.forEach((row) => {
@@ -97,6 +97,7 @@ async function getPublicServices({
   categoryId,
   categoryIds,
   keyword,
+  isHot,
   page = 1,
   pageSize = 20,
   productTypes = [],
@@ -114,13 +115,13 @@ async function getPublicServices({
       ? categoryId.split(',').map((v) => v.trim()).filter(Boolean)
       : [];
   if (multiCategoryIds.length) {
-    const expandedCategoryIds = await expandNavCategoryIds(multiCategoryIds);
+    const expandedCategoryIds = await expandCategoryIds(multiCategoryIds);
     if (expandedCategoryIds.length) {
       conditions.push(`category_id IN (${expandedCategoryIds.map(() => '?').join(',')})`);
       params.push(...expandedCategoryIds);
     }
   } else if (categoryId) {
-    const expandedCategoryIds = await expandNavCategoryIds([categoryId]);
+    const expandedCategoryIds = await expandCategoryIds([categoryId]);
     if (expandedCategoryIds.length > 1) {
       conditions.push(`category_id IN (${expandedCategoryIds.map(() => '?').join(',')})`);
       params.push(...expandedCategoryIds);
@@ -130,9 +131,14 @@ async function getPublicServices({
     }
   }
 
+  if (isHot !== undefined && isHot !== '') {
+    conditions.push('is_hot = ?');
+    params.push(isHot);
+  }
+
   if (keyword) {
-    conditions.push('(name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ?)');
-    params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    conditions.push('(name LIKE ? OR en_name LIKE ? OR short_desc LIKE ? OR goods_code LIKE ? OR service_code LIKE ?)');
+    params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
   }
   const mergedTagFilters = {
     ...serviceFilterService.normalizeFilterMap(tagFilters),

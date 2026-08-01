@@ -3,9 +3,16 @@
     <div class="page-header">
       <div>
         <h2>SEO管理</h2>
-        <p class="desc">统一维护全站、栏目、单品/资讯 SEO；资讯正文请在「导航&amp;页面管理 → 页面编辑」维护，此处仅编辑 SEO 字段</p>
+        <p class="desc">统一维护全站、栏目、产品/服务 SEO。可一键从官网信息、栏目 Banner、产品/服务资料自动抓取填充；已手工填写的内容默认保留，「编辑SEO」仍可单独修改。</p>
+        <p class="sync-note">从内容同步SEO：只填充空白字段，已手工填写的标题、关键词、描述、配图会保留。</p>
+        <p class="sync-note">强制覆盖同步：用抓取内容重写全部 SEO 字段，包括已手工修改的内容（操作前会确认）。</p>
       </div>
-      <button class="btn btn-primary" @click="openSourceCheck">前台源码校验</button>
+      <div class="header-actions">
+        <button class="btn btn-secondary" :disabled="syncing" @click="runAutoSync(false)">
+          {{ syncing ? '同步中...' : '从内容同步SEO' }}
+        </button>
+        <button class="btn btn-secondary" :disabled="syncing" @click="runAutoSync(true)">强制覆盖同步</button>
+      </div>
     </div>
 
     <div class="seo-layout">
@@ -13,7 +20,7 @@
         <div class="tabs-row">
           <button class="tab-btn" :class="{ active: tab === 'global' }" @click="tab = 'global'">全站基础SEO</button>
           <button class="tab-btn" :class="{ active: tab === 'page' }" @click="tab = 'page'">栏目页面SEO</button>
-          <button class="tab-btn" :class="{ active: tab === 'item' }" @click="tab = 'item'">单品/资讯SEO</button>
+          <button class="tab-btn" :class="{ active: tab === 'item' }" @click="tab = 'item'">产品/服务SEO</button>
         </div>
 
         <template v-if="tab === 'global'">
@@ -60,7 +67,7 @@
         <template v-if="tab === 'item'">
           <div class="tabs-row">
             <button class="tab-btn" :class="{ active: itemTab === 'product' }" @click="itemTab = 'product'; loadProducts(1)">产品SEO</button>
-            <button class="tab-btn" :class="{ active: itemTab === 'news' }" @click="itemTab = 'news'; loadNews(1)">资讯SEO</button>
+            <button class="tab-btn" :class="{ active: itemTab === 'service' }" @click="itemTab = 'service'; loadServices(1)">服务SEO</button>
           </div>
           <div class="toolbar">
             <input v-model="keyword" class="form-control" style="max-width:220px" placeholder="名称/ID检索" @keyup.enter="reloadItemList(1)" />
@@ -73,11 +80,12 @@
           </div>
           <div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>ID</th><th>名称</th><th>操作</th></tr></thead>
+              <thead><tr><th>ID</th><th>名称</th><th>SEO标题</th><th>操作</th></tr></thead>
               <tbody>
                 <tr v-for="row in itemRows" :key="row.id">
                   <td>{{ row.id }}</td>
                   <td>{{ row.name || row.title }}</td>
+                  <td class="seo-title-cell">{{ row.seo_title || '（未填写，可同步）' }}</td>
                   <td><button class="btn btn-secondary btn-sm" @click="openItemDialog(row)">编辑SEO</button></td>
                 </tr>
               </tbody>
@@ -133,13 +141,15 @@ import {
   getSeoGlobal, saveSeoGlobal,
   getSeoPages, saveSeoPage,
   getSeoProducts, saveSeoProduct,
-  getSeoNews, saveSeoNews,
+  getSeoServices, saveSeoService,
+  autoSyncSeo,
 } from '@/api'
 import { toPublicMediaUrl } from '@/utils/media'
 import ImageUploadField from '@/components/ImageUploadField.vue'
 
 const tab = ref('global')
 const itemTab = ref('product')
+const syncing = ref(false)
 const global = ref({ seo_home_title: '', seo_global_keywords: '', seo_global_description: '', seo_share_img: '' })
 const pages = ref([])
 const activePageId = ref(null)
@@ -198,16 +208,16 @@ async function loadProducts(page = 1) {
   itemPagination.value = data.pagination || { total: 0, totalPages: 1 }
 }
 
-async function loadNews(page = 1) {
+async function loadServices(page = 1) {
   itemPage.value = page
-  const data = await getSeoNews({ page, pageSize: pageSize.value, keyword: keyword.value })
+  const data = await getSeoServices({ page, pageSize: pageSize.value, keyword: keyword.value })
   itemRows.value = data.list || []
   itemPagination.value = data.pagination || { total: 0, totalPages: 1 }
 }
 
 function reloadItemList(page = 1) {
-  if (itemTab.value === 'product') return loadProducts(page)
-  return loadNews(page)
+  if (itemTab.value === 'service') return loadServices(page)
+  return loadProducts(page)
 }
 
 async function saveGlobal() {
@@ -238,26 +248,61 @@ function openItemDialog(row) {
 
 async function saveItem() {
   if (!editingItem.value) return
-  if (itemTab.value === 'product') await saveSeoProduct(editingItem.value.id, itemForm.value)
-  else await saveSeoNews(editingItem.value.id, itemForm.value)
+  if (itemTab.value === 'service') await saveSeoService(editingItem.value.id, itemForm.value)
+  else await saveSeoProduct(editingItem.value.id, itemForm.value)
   showItemDialog.value = false
   await reloadItemList(itemPage.value)
 }
 
-function openSourceCheck() {
-  window.open('http://localhost:5173', '_blank')
+async function runAutoSync(overwrite = false) {
+  if (overwrite) {
+    const ok = window.confirm('将用抓取内容覆盖已有 SEO（含手工修改），是否继续？')
+    if (!ok) return
+  }
+  syncing.value = true
+  try {
+    const data = await autoSyncSeo({ mode: overwrite ? 'overwrite' : 'fill_empty' })
+    await loadGlobal()
+    await loadPages()
+    await reloadItemList(itemPage.value)
+    const s = data?.summary || {}
+    alert(`同步完成：全站 ${s.global || 0}，栏目 ${s.pages || 0}，产品 ${s.products || 0}，服务 ${s.services || 0}`)
+  } catch (err) {
+    alert(err.message || '同步失败')
+  } finally {
+    syncing.value = false
+  }
 }
-
-watch(activePageId, () => {}, { immediate: false })
 
 onMounted(async () => {
   await loadGlobal()
   await loadPages()
+  // First visit: auto fill empty SEO from content, keep edit buttons
+  const needSync = !String(global.value.seo_home_title || '').trim()
+    || !String(global.value.seo_global_keywords || '').trim()
+    || !String(global.value.seo_global_description || '').trim()
+  if (needSync) {
+    try {
+      await autoSyncSeo({ mode: 'fill_empty' })
+      await loadGlobal()
+      await loadPages()
+    } catch (err) {
+      console.error(err)
+    }
+  }
   await loadProducts(1)
 })
 </script>
 
 <style scoped>
+.page-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sync-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748b;
+}
 .seo-layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
 .tabs-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .tab-btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 7px 12px; color: #334155; cursor: pointer; }
@@ -270,5 +315,6 @@ onMounted(async () => {
 .search-desc { color: #6b7280; font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
 .search-keywords { color: #16a34a; font-size: 12px; }
 .counter { margin-top: 4px; font-size: 12px; color: #64748b; text-align: right; }
+.seo-title-cell { max-width: 280px; color: #475569; font-size: 13px; }
 @media (max-width: 1100px) { .seo-layout { grid-template-columns: 1fr; } .preview-card { position: static; } }
 </style>

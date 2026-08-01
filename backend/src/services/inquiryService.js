@@ -13,12 +13,18 @@ async function getPublicConfigs() {
     'site_name',
     'site_logo',
     'brand_logo',
+    'icon_logo',
+    'site_public_open',
     'icp_no',
     'seo_global_keywords',
     'seo_global_description',
     'seo_home_title',
     'seo_share_img',
     'footer_copyright',
+    'footer_police_beian',
+    'footer_license_text',
+    'footer_license_url',
+    'footer_region_note',
   ];
   const [rows] = await pool.query(
     `SELECT config_key, config_value, name FROM nuoyuan_config WHERE config_key IN (${publicKeys.map(() => '?').join(',')}) ORDER BY sort ASC`,
@@ -28,6 +34,11 @@ async function getPublicConfigs() {
   rows.forEach((row) => {
     result[row.config_key] = row.config_value;
   });
+  // Missing key: keep open so existing overseas demo deploys are not suddenly gated.
+  // Explicit `0` in DB (local/阿里云准备) still shows「即将上线」.
+  if (result.site_public_open === undefined || result.site_public_open === null || result.site_public_open === '') {
+    result.site_public_open = '1';
+  }
   const [footerBlocks] = await pool.query(
     'SELECT id, title, layout_type, links_json, qrcode_image, copyright_text, sort FROM nuoyuan_footer_block WHERE status = 1 ORDER BY sort ASC, id ASC'
   );

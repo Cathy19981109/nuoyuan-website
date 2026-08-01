@@ -10,10 +10,6 @@ const route = useRoute()
 const results = ref({
   products: [],
   services: [],
-  news: [],
-  applications: [],
-  modules: [],
-  pages: [],
 })
 const loading = ref(false)
 const keyword = ref('')
@@ -28,9 +24,7 @@ const breadcrumbs = computed(() => {
 })
 
 const hasResults = computed(() =>
-  ['products', 'services', 'modules', 'news', 'applications', 'pages'].some(
-    (key) => (results.value[key] || []).length > 0
-  )
+  ['products', 'services'].some((key) => (results.value[key] || []).length > 0)
 )
 
 async function doSearch(kw) {
@@ -100,67 +94,7 @@ watch(
             </div>
           </div>
 
-          <div v-if="results.modules?.length" class="result-group">
-            <h2>内容板块 ({{ results.modules.length }})</h2>
-            <div class="result-list">
-              <router-link
-                v-for="item in results.modules"
-                :key="'m' + item.id"
-                :to="item.to || '/'"
-                class="result-item"
-              >
-                <h3>{{ item.title || item.main_title || item.module_name }}</h3>
-                <p>{{ item.short_desc }}</p>
-              </router-link>
-            </div>
-          </div>
-
-          <div v-if="results.news?.length" class="result-group">
-            <h2>新闻 ({{ results.news.length }})</h2>
-            <div class="result-list">
-              <router-link
-                v-for="item in results.news"
-                :key="'n' + item.id"
-                :to="`/news/${item.id}`"
-                class="result-item"
-              >
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.short_desc }}</p>
-              </router-link>
-            </div>
-          </div>
-
-          <div v-if="results.applications?.length" class="result-group">
-            <h2>应用 ({{ results.applications.length }})</h2>
-            <div class="result-list">
-              <router-link
-                v-for="item in results.applications"
-                :key="'a' + item.id"
-                to="/applications"
-                class="result-item"
-              >
-                <h3>{{ item.name }}</h3>
-                <p>{{ item.short_desc }}</p>
-              </router-link>
-            </div>
-          </div>
-
-          <div v-if="results.pages?.length" class="result-group">
-            <h2>页面 ({{ results.pages.length }})</h2>
-            <div class="result-list">
-              <router-link
-                v-for="item in results.pages"
-                :key="'pg' + item.id"
-                :to="item.to || item.path || '/'"
-                class="result-item"
-              >
-                <h3>{{ item.title || item.name }}</h3>
-                <p>{{ item.short_desc || item.nav_name }}</p>
-              </router-link>
-            </div>
-          </div>
-
-          <div v-if="!hasResults" class="empty">未找到相关结果</div>
+          <div v-if="!hasResults" class="empty">未找到相关产品或服务</div>
         </div>
       </div>
     </section>

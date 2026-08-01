@@ -62,7 +62,7 @@ function getTemplatesByPage(pageKey) {
     { code: 'full_width_single_image', name: '全屏宽幅单图', imageRule: '16:9，1920x720，png/jpg/webp，<=50MB（仅单图）' },
     { code: 'image_text_split', name: '图文分栏模块', imageRule: '图上/图下：16:9 1920x720；图左/图右/图内：4:3 1200x900；png/jpg/webp，<=50MB' },
     { code: 'multi_image_carousel', name: '多图轮播模块', imageRule: '仅图片、无文字；须统一长方形 16:9（建议 1920x720），png/jpg/webp，<=50MB，至少 2 张' },
-    { code: 'single_video_module', name: '单视频模块', imageRule: '16:9，mp4，<=1GB（仅单视频）' },
+    { code: 'single_video_module', name: '视频模块', imageRule: '16:9，mp4，<=1GB（仅视频）' },
     { code: 'image_jump_button', name: '图文跳转按钮模块', imageRule: '配图建议16:9 1920x720，png/jpg/webp，<=50MB' },
   ];
   return common;

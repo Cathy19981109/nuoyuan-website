@@ -14,7 +14,7 @@ const routes = [
     redirect: '/dashboard',
     children: [
       { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/Dashboard.vue'), meta: { title: '控制台', breadcrumbs: [{ label: '控制台', to: '/dashboard' }] } },
-      { path: 'nav', name: 'Nav', component: () => import('@/views/nav/NavList.vue'), meta: { title: '导航编辑', breadcrumbs: [{ label: '导航&页面管理', to: '/nav' }, { label: '导航编辑', to: '/nav' }] } },
+      { path: 'nav', name: 'Nav', component: () => import('@/views/nav/NavList.vue'), meta: { title: '顶部导航编辑', breadcrumbs: [{ label: '导航&页面管理', to: '/nav' }, { label: '顶部导航编辑', to: '/nav' }] } },
       { path: 'pages', name: 'Pages', component: () => import('@/views/pages/PageList.vue'), meta: { title: '页面管理', breadcrumbs: [{ label: '页面管理', to: '/pages' }] } },
       { path: 'product-categories', name: 'ProductCategories', component: () => import('@/views/products/CategoryList.vue'), meta: { title: '产品分类（导航）', breadcrumbs: [{ label: '导航&页面管理', to: '/nav' }, { label: '产品分类（导航）', to: '/product-categories' }] } },
       { path: 'product-filter-tags', name: 'ProductFilterTags', component: () => import('@/views/products/ProductFilterTagManager.vue'), meta: { title: '筛选标签', breadcrumbs: [{ label: '产品管理', to: '/product-filter-tags' }, { label: '筛选标签', to: '/product-filter-tags' }] } },
@@ -27,7 +27,7 @@ const routes = [
       { path: 'applications', redirect: '/page-editor' },
       { path: 'inquiries', name: 'Inquiries', component: () => import('@/views/inquiries/InquiryList.vue'), meta: { title: '询价管理', breadcrumbs: [{ label: '询价管理', to: '/inquiries' }, { label: '询价记录', to: '/inquiries' }] } },
       { path: 'site-center', name: 'SiteCenter', component: () => import('@/views/ops/SiteCenter.vue'), meta: { title: '官网信息', breadcrumbs: [{ label: '官网信息', to: '/site-center' }] } },
-      { path: 'footer-config', name: 'FooterConfig', component: () => import('@/views/ops/FooterConfig.vue'), meta: { title: '导航与底部配置' } },
+      { path: 'footer-config', name: 'FooterConfig', component: () => import('@/views/ops/FooterConfig.vue'), meta: { title: '底部导航编辑', breadcrumbs: [{ label: '导航&页面管理', to: '/nav' }, { label: '底部导航编辑', to: '/footer-config' }] } },
       { path: 'stats-board', name: 'StatsBoard', component: () => import('@/views/ops/StatsBoard.vue'), meta: { title: '数据统计', breadcrumbs: [{ label: '数据统计', to: '/stats-board' }] } },
       { path: 'inquiry-form-builder', name: 'InquiryFormBuilder', component: () => import('@/views/ops/InquiryFormBuilder.vue'), meta: { title: '询价表单配置' } },
       { path: 'page-editor', name: 'PageEditor', component: () => import('@/views/ops/PageEditorV2.vue'), meta: { title: '页面编辑', breadcrumbs: [{ label: '导航&页面管理', to: '/nav' }, { label: '页面编辑', to: '/page-editor' }] } },

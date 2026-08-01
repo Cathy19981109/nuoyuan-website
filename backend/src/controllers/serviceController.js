@@ -62,7 +62,7 @@ async function deleteCategory(req, res, next) {
 
 async function getPublicList(req, res, next) {
   try {
-    const { categoryId, categoryIds, keyword, page, pageSize, productType, productTypes, appType, appTypes, levelTag, levelTags, tagFilters } = req.query;
+    const { categoryId, categoryIds, keyword, isHot, page, pageSize, productType, productTypes, appType, appTypes, levelTag, levelTags, tagFilters } = req.query;
     const parseTagFilters = () => {
       if (!tagFilters) return {};
       if (typeof tagFilters === 'string') {
@@ -84,6 +84,7 @@ async function getPublicList(req, res, next) {
       categoryId,
       categoryIds: normalizedCategoryIds,
       keyword,
+      isHot,
       page,
       pageSize,
       productTypes: parseMulti(productTypes, productType),

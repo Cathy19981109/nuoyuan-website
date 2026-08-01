@@ -276,7 +276,7 @@ function buildTagFilters() {
     <PageBreadcrumb :items="breadcrumbs" />
     <section class="section">
       <div class="container">
-        <ModuleRenderer :modules="modulesBeforeList" />
+        <ModuleRenderer :modules="modulesBeforeList" :all-modules="pageModules" />
       </div>
       <div class="container product-layout">
         <aside class="filter-panel">
@@ -346,10 +346,10 @@ function buildTagFilters() {
         </div>
       </div>
       <div class="container">
-        <ModuleRenderer :modules="modulesAfterList" />
+        <ModuleRenderer :modules="modulesAfterList" :all-modules="pageModules" />
       </div>
     </section>
-    <ModuleRenderer v-if="listModuleIndex < 0" :modules="normalModules" />
+    <ModuleRenderer v-if="listModuleIndex < 0" :modules="normalModules" :all-modules="pageModules" />
   </div>
 </template>
 

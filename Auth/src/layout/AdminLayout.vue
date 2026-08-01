@@ -1,12 +1,19 @@
 <template>
   <div class="admin-layout">
     <aside class="sidebar">
-      <div class="sidebar-brand">
-        <span class="brand-icon">N</span>
-        <div>
-          <div class="brand-title">诺元智合</div>
-          <div class="brand-sub">管理后台</div>
-        </div>
+      <div class="sidebar-brand" :class="{ 'has-logo': !!brandLogoUrl }">
+        <img
+          v-if="brandLogoUrl"
+          class="brand-logo"
+          :src="brandLogoUrl"
+          alt="品牌 Logo"
+        />
+        <template v-else>
+          <span class="brand-icon">N</span>
+          <div class="brand-text">
+            <div class="brand-title">诺元智合</div>
+          </div>
+        </template>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-tree">
@@ -45,8 +52,10 @@
           <button class="btn btn-secondary btn-sm" @click="handleLogout">退出登录</button>
         </div>
       </header>
-      <main class="content">
+      <div class="breadcrumb-bar">
         <AppBreadcrumb />
+      </div>
+      <main class="content">
         <router-view />
       </main>
     </div>
@@ -54,20 +63,28 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { getSiteCenter } from '@/api'
+import { toPublicMediaUrl } from '@/utils/media'
+import { applyFavicon } from '@/utils/favicon'
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const brandLogo = ref('')
+const iconLogo = ref('')
+
+const brandLogoUrl = computed(() => toPublicMediaUrl(brandLogo.value))
 
 const menuItems = [
   { key: 'site', path: '/site-center', label: '官网信息', icon: '⌂' },
   { key: 'stats', path: '/stats-board', label: '数据统计', icon: '◫' },
   { key: 'nav-page', label: '导航&页面管理', icon: '◨', children: [
-    { path: '/nav', label: '导航编辑' },
+    { path: '/nav', label: '顶部导航编辑' },
+    { path: '/footer-config', label: '底部导航编辑' },
     { path: '/page-editor', label: '页面编辑' },
   ] },
   { key: 'product', label: '产品管理', icon: '◧', children: [
@@ -85,6 +102,22 @@ const menuItems = [
 const expanded = ref({})
 
 const currentTitle = computed(() => route.meta.title || '管理后台')
+
+onMounted(async () => {
+  try {
+    const groups = await getSiteCenter()
+    const items = (groups || []).flatMap((g) => g.items || [])
+    const logoItem = items.find((i) => i.key === 'brand_logo')
+    const iconItem = items.find((i) => i.key === 'icon_logo')
+    brandLogo.value = String(logoItem?.value || '').trim()
+    iconLogo.value = String(iconItem?.value || '').trim()
+    applyFavicon(toPublicMediaUrl(iconLogo.value) || '/favicon.png')
+  } catch {
+    brandLogo.value = ''
+    iconLogo.value = ''
+    applyFavicon('/favicon.png')
+  }
+})
 
 function isActive(path) {
   return route.path === path || route.path.startsWith(path + '/')
@@ -136,6 +169,21 @@ function handleLogout() {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.sidebar-brand.has-logo {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.brand-logo {
+  display: block;
+  height: 56px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+}
+
 .brand-icon {
   width: 36px;
   height: 36px;
@@ -146,10 +194,10 @@ function handleLogout() {
   justify-content: center;
   font-weight: 700;
   font-size: 18px;
+  flex-shrink: 0;
 }
 
 .brand-title { font-size: 16px; font-weight: 600; }
-.brand-sub { font-size: 12px; opacity: 0.7; margin-top: 2px; }
 
 .sidebar-nav { padding: 12px 10px; }
 .nav-tree { display: grid; gap: 4px; }
@@ -207,6 +255,19 @@ function handleLogout() {
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 .admin-name { font-size: 13px; color: var(--color-text-light); }
 
+.breadcrumb-bar {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 45;
+  height: var(--breadcrumb-height);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 6px 12px -10px rgba(15, 23, 42, 0.35);
+}
+
 .content {
   flex: 1;
   padding: 24px;
@@ -214,8 +275,11 @@ function handleLogout() {
 
 @media (max-width: 768px) {
   .sidebar { width: 64px; }
-  .sidebar-brand div, .nav-item span:not(.nav-icon) { display: none; }
+  .sidebar-brand .brand-text,
+  .nav-item span:not(.nav-icon) { display: none; }
   .sidebar-brand { justify-content: center; padding: 16px 8px; }
+  .sidebar-brand.has-logo { align-items: center; }
+  .brand-logo { height: 32px; max-width: 48px; }
   .nav-item { justify-content: center; padding: 12px 8px; }
   .main-area { margin-left: 64px; }
 }

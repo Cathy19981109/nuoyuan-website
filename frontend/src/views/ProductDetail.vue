@@ -119,7 +119,7 @@ onMounted(async () => {
   try {
     product.value = isServiceDetail ? await getServiceById(route.params.id) : await getProductById(route.params.id)
     videoEnded.value = false
-    if (isServiceDetail) await applySeoMeta({ pageKey: 'services' })
+    if (isServiceDetail) await applySeoMeta({ itemType: 'service', itemId: route.params.id })
     else await applySeoMeta({ itemType: 'product', itemId: route.params.id })
   } catch (err) {
     console.error(err.message)

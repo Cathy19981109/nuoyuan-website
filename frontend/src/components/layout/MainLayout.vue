@@ -6,6 +6,7 @@ import AppHeader from './AppHeader.vue'
 import AppFooter from './AppFooter.vue'
 import InquiryDialog from '../InquiryDialog.vue'
 import { applySeoMeta } from '@/composables/useSeo'
+import { applyFavicon } from '@/utils/favicon'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,12 +20,24 @@ const isPreviewMode = computed(() => {
   return q === '1' || q === 'true' || q === 'yes'
 })
 
+const isSiteOpen = computed(() => {
+  const v = String(siteConfig.value?.site_public_open ?? '0').trim()
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on'
+})
+
+const showComingSoon = computed(() => !isSiteOpen.value && !isPreviewMode.value)
+
 async function loadData() {
   try {
     const [nav, config] = await Promise.all([getNav(), getConfig()])
     navList.value = nav || []
     siteConfig.value = config || {}
-    applySeoMeta({ pageKey: 'home' })
+    applyFavicon(config?.icon_logo || config?.brand_logo || '/favicon.png')
+    if (!showComingSoon.value) {
+      applySeoMeta({ pageKey: 'home' })
+    } else {
+      document.title = '即将上线'
+    }
   } catch (err) {
     console.error('加载站点数据失败:', err.message)
   }
@@ -77,34 +90,49 @@ defineExpose({ openInquiry })
 
 <template>
   <div class="layout" :class="{ 'is-preview': isPreviewMode }">
-    <div v-if="isPreviewMode" class="preview-mode-banner">
-      <span>预览模式：仅展示更新后的页面效果，功能不可交互</span>
-      <button type="button" class="preview-exit" @click="exitPreview">退出预览</button>
+    <div v-if="showComingSoon" class="coming-soon">
+      <div class="coming-card">
+        <img
+          v-if="siteConfig.brand_logo || siteConfig.site_logo"
+          class="coming-logo"
+          :src="siteConfig.brand_logo || siteConfig.site_logo"
+          alt="品牌 Logo"
+        />
+        <h1>即将上线</h1>
+        <p>网站内容筹备中，开放后即可访问。如需预览请联系管理员。</p>
+      </div>
     </div>
 
-    <div
-      class="preview-shell"
-      :class="{ 'preview-locked': isPreviewMode }"
-      @click.capture="onPreviewGuard"
-      @submit.capture="onPreviewGuard"
-    >
-      <AppHeader
-        :nav-list="navList"
-        :site-config="siteConfig"
-        @open-inquiry="openInquiry()"
+    <template v-else>
+      <div v-if="isPreviewMode" class="preview-mode-banner">
+        <span>预览模式：网站尚未对外开放，当前仅供内部查看效果</span>
+        <button type="button" class="preview-exit" @click="exitPreview">退出预览</button>
+      </div>
+
+      <div
+        class="preview-shell"
+        :class="{ 'preview-locked': isPreviewMode }"
+        @click.capture="onPreviewGuard"
+        @submit.capture="onPreviewGuard"
+      >
+        <AppHeader
+          :nav-list="navList"
+          :site-config="siteConfig"
+          @open-inquiry="openInquiry()"
+        />
+        <main class="main">
+          <router-view v-slot="{ Component }">
+            <component :is="Component" :site-config="siteConfig" @open-inquiry="openInquiry" />
+          </router-view>
+        </main>
+        <AppFooter :site-config="siteConfig" />
+      </div>
+
+      <InquiryDialog
+        v-model="showInquiry"
+        :product="inquiryProduct"
       />
-      <main class="main">
-        <router-view v-slot="{ Component }">
-          <component :is="Component" :site-config="siteConfig" @open-inquiry="openInquiry" />
-        </router-view>
-      </main>
-      <AppFooter :site-config="siteConfig" />
-    </div>
-
-    <InquiryDialog
-      v-model="showInquiry"
-      :product="inquiryProduct"
-    />
+    </template>
   </div>
 </template>
 
@@ -174,5 +202,41 @@ defineExpose({ openInquiry })
 .preview-shell.preview-locked :deep(textarea),
 .preview-shell.preview-locked :deep([role='button']) {
   pointer-events: none;
+}
+
+.coming-soon {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+  background:
+    radial-gradient(ellipse at top, rgba(11, 45, 92, 0.12), transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.coming-card {
+  max-width: 520px;
+  text-align: center;
+}
+
+.coming-logo {
+  display: block;
+  height: 56px;
+  width: auto;
+  margin: 0 auto 28px;
+  object-fit: contain;
+}
+
+.coming-card h1 {
+  margin: 0 0 12px;
+  font-size: 36px;
+  color: #0b2d5c;
+}
+
+.coming-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.7;
 }
 </style>

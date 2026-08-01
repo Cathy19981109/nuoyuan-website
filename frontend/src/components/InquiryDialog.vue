@@ -1,6 +1,7 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
 import { submitInquiry, getInquiryForm, getProducts, getServices } from '@/api'
+import { CHINA_REGIONS, citiesOfProvince, isMunicipality } from '@/data/chinaRegions'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -20,6 +21,11 @@ const HIDDEN_CUSTOM_LABELS = new Set([
   '规格/类型',
   '实验需求',
   '需求描述',
+  '省份',
+  '城市',
+  '所在省份',
+  '所在城市',
+  '所在地区',
 ])
 
 const form = ref({
@@ -27,6 +33,8 @@ const form = ref({
   phone: '',
   email: '',
   company: '',
+  province: '',
+  city: '',
   product_key: '',
   product_name: '',
   product_id: null,
@@ -42,20 +50,11 @@ const customSchema = ref([])
 const catalogItems = ref([])
 const OTHER_KEY = 'other'
 const catalogMenuOpen = ref(false)
+const catalogTriggerRef = ref(null)
+const catalogMenuStyle = ref({})
 
 const productItems = computed(() => catalogItems.value.filter((i) => i.kind === 'product'))
 const serviceItems = computed(() => catalogItems.value.filter((i) => i.kind === 'service'))
-
-const catalogDisplayLabel = computed(() => {
-  if (form.value.product_key === OTHER_KEY) return '其他'
-  if (selectedCatalogItem.value) return selectedCatalogItem.value.label
-  if (form.value.product_name) return form.value.product_name
-  return '请选择产品或服务'
-})
-
-const visibleCustomFields = computed(() =>
-  (customSchema.value || []).filter((f) => !HIDDEN_CUSTOM_LABELS.has(String(f.label || '').trim()))
-)
 
 const selectedCatalogItem = computed(() =>
   catalogItems.value.find((item) => item.key === form.value.product_key) || null
@@ -65,12 +64,65 @@ const isOtherSelected = computed(() => form.value.product_key === OTHER_KEY)
 
 const showSpecField = computed(() => !isOtherSelected.value && !!form.value.product_key)
 
+const catalogDisplayLabel = computed(() => {
+  if (form.value.product_key === OTHER_KEY) return '其他综合咨询'
+  if (selectedCatalogItem.value) return selectedCatalogItem.value.label
+  if (form.value.product_name) return form.value.product_name
+  return '请选择产品或服务'
+})
+
+function updateCatalogMenuPosition() {
+  const el = catalogTriggerRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const viewportH = window.innerHeight || 0
+  const spaceBelow = Math.max(viewportH - rect.bottom - 16, 120)
+  const spaceAbove = Math.max(rect.top - 16, 120)
+  // Use almost all remaining viewport so every option can show
+  const openUp = spaceBelow < 280 && spaceAbove > spaceBelow
+  const maxPanel = Math.floor(openUp ? spaceAbove : spaceBelow)
+  catalogMenuStyle.value = {
+    position: 'fixed',
+    left: `${Math.round(rect.left)}px`,
+    width: `${Math.round(rect.width)}px`,
+    zIndex: 3000,
+    maxHeight: `${maxPanel}px`,
+    ...(openUp
+      ? { bottom: `${Math.round(viewportH - rect.top + 6)}px`, top: 'auto' }
+      : { top: `${Math.round(rect.bottom + 6)}px`, bottom: 'auto' }),
+  }
+}
+
+function onWindowReposition() {
+  if (!catalogMenuOpen.value) return
+  updateCatalogMenuPosition()
+}
+
+const visibleCustomFields = computed(() =>
+  (customSchema.value || []).filter((f) => !HIDDEN_CUSTOM_LABELS.has(String(f.label || '').trim()))
+)
+
+const cityOptions = computed(() => citiesOfProvince(form.value.province))
+
+const isMunicipalitySelected = computed(() => isMunicipality(form.value.province))
+
 const specOptions = computed(() => {
   if (!showSpecField.value) return []
   const item = selectedCatalogItem.value
   if (!item) return []
   return item.variants || []
 })
+
+function onProvinceChange() {
+  const cities = citiesOfProvince(form.value.province)
+  if (isMunicipality(form.value.province) && cities.length) {
+    form.value.city = cities[0]
+    return
+  }
+  if (!cities.includes(form.value.city)) {
+    form.value.city = ''
+  }
+}
 
 function parseVariants(row = {}) {
   const fromJson = Array.isArray(row.variants)
@@ -156,6 +208,8 @@ function resetFormBase() {
     phone: '',
     email: '',
     company: '',
+    province: '',
+    city: '',
     product_key: '',
     product_name: '',
     product_id: null,
@@ -198,7 +252,7 @@ function applyIncomingProduct() {
 
 function onProductChange() {
   if (form.value.product_key === OTHER_KEY) {
-    form.value.product_name = '其他'
+    form.value.product_name = '其他综合咨询'
     form.value.product_id = null
     form.value.spec = ''
     return
@@ -225,10 +279,29 @@ function selectCatalogKey(key) {
   catalogMenuOpen.value = false
 }
 
-function toggleCatalogMenu() {
+async function toggleCatalogMenu() {
   if (formLoading.value) return
   catalogMenuOpen.value = !catalogMenuOpen.value
+  if (catalogMenuOpen.value) {
+    await nextTick()
+    updateCatalogMenuPosition()
+  }
 }
+
+watch(catalogMenuOpen, (open) => {
+  if (open) {
+    window.addEventListener('resize', onWindowReposition)
+    window.addEventListener('scroll', onWindowReposition, true)
+  } else {
+    window.removeEventListener('resize', onWindowReposition)
+    window.removeEventListener('scroll', onWindowReposition, true)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWindowReposition)
+  window.removeEventListener('scroll', onWindowReposition, true)
+})
 
 watch(
   () => props.modelValue,
@@ -288,6 +361,14 @@ async function handleSubmit() {
     errorMsg.value = '请填写正确的邮箱格式'
     return
   }
+  if (!form.value.province.trim()) {
+    errorMsg.value = '请选择省份'
+    return
+  }
+  if (!form.value.city.trim()) {
+    errorMsg.value = '请选择城市'
+    return
+  }
   if (!form.value.product_name.trim()) {
     errorMsg.value = '请选择咨询产品/服务'
     return
@@ -315,6 +396,8 @@ async function handleSubmit() {
         label: f.label,
         value: form.value[f.id] || '',
       })),
+      { label: '省份', value: form.value.province || '' },
+      { label: '城市', value: form.value.city || '' },
       ...(showSpecField.value && form.value.spec
         ? [{ label: '规格/类型', value: form.value.spec }]
         : []),
@@ -344,149 +427,188 @@ async function handleSubmit() {
   <Teleport to="body">
     <div v-if="modelValue" class="overlay" @click.self="close">
       <div class="dialog">
-        <button class="close-btn" @click="close">×</button>
-        <h2>立即询价</h2>
-        <p class="subtitle">填写您的需求，我们将尽快与您联系</p>
-
-        <div v-if="success" class="success-msg">
-          <p>提交成功！我们会尽快与您联系。</p>
-          <button class="btn btn-primary" @click="close">关闭</button>
+        <div class="dialog-header">
+          <button type="button" class="close-btn" @click="close">×</button>
+          <h2>立即询价</h2>
+          <p class="subtitle">填写您的需求，我们将尽快与您联系</p>
         </div>
 
-        <form v-else @submit.prevent="handleSubmit">
-          <div v-if="formLoading" class="subtitle">正在加载询价表单...</div>
-
-          <div class="form-row">
-            <label><span class="required">*</span>联系人姓名</label>
-            <input v-model="form.name" type="text" placeholder="请输入姓名" />
-          </div>
-          <div class="form-row">
-            <label><span class="required">*</span>联系电话</label>
-            <input v-model="form.phone" type="tel" placeholder="请输入手机号" />
-          </div>
-          <div class="form-row">
-            <label><span class="required">*</span>邮箱</label>
-            <input v-model="form.email" type="email" placeholder="请输入邮箱" />
-          </div>
-          <div class="form-row">
-            <label>公司/单位</label>
-            <input v-model="form.company" type="text" placeholder="请输入公司或单位名称（选填）" />
+        <div class="dialog-body">
+          <div v-if="success" class="success-msg">
+            <p>提交成功！我们会尽快与您联系。</p>
+            <button class="btn btn-primary" @click="close">关闭</button>
           </div>
 
-          <div class="form-row">
-            <label><span class="required">*</span>咨询产品/服务</label>
-            <div class="catalog-picker" @keydown.esc="catalogMenuOpen = false">
-              <button
-                type="button"
-                class="catalog-trigger"
-                :class="{ open: catalogMenuOpen, placeholder: !form.product_key && !form.product_name }"
-                @click="toggleCatalogMenu"
-              >
-                <span>{{ catalogDisplayLabel }}</span>
-                <span class="catalog-caret">▾</span>
-              </button>
-              <div v-if="catalogMenuOpen" class="catalog-menu">
-                <template v-if="productItems.length">
-                  <div class="catalog-group-label">产品</div>
-                  <button
-                    v-for="item in productItems"
-                    :key="item.key"
-                    type="button"
-                    class="catalog-option"
-                    :class="{ active: form.product_key === item.key }"
-                    @click="selectCatalogKey(item.key)"
-                  >
-                    {{ item.label }}
-                  </button>
-                </template>
-                <template v-if="serviceItems.length">
-                  <div class="catalog-group-label">服务</div>
-                  <button
-                    v-for="item in serviceItems"
-                    :key="item.key"
-                    type="button"
-                    class="catalog-option"
-                    :class="{ active: form.product_key === item.key }"
-                    @click="selectCatalogKey(item.key)"
-                  >
-                    {{ item.label }}
-                  </button>
-                </template>
-                <button
-                  type="button"
-                  class="catalog-group-label is-action"
-                  :class="{ active: form.product_key === OTHER_KEY }"
-                  @click="selectCatalogKey(OTHER_KEY)"
+          <form v-else @submit.prevent="handleSubmit">
+            <div v-if="formLoading" class="subtitle">正在加载询价表单...</div>
+
+            <div class="form-row">
+              <label><span class="required">*</span>联系人姓名</label>
+              <input v-model="form.name" type="text" placeholder="请输入姓名" />
+            </div>
+            <div class="form-row">
+              <label><span class="required">*</span>联系电话</label>
+              <input v-model="form.phone" type="tel" placeholder="请输入手机号" />
+            </div>
+            <div class="form-row">
+              <label><span class="required">*</span>邮箱</label>
+              <input v-model="form.email" type="email" placeholder="请输入邮箱" />
+            </div>
+            <div class="form-row">
+              <label>公司/单位</label>
+              <input v-model="form.company" type="text" placeholder="请输入公司或单位名称（选填）" />
+            </div>
+
+            <div class="form-row">
+              <label><span class="required">*</span>省份</label>
+              <select v-model="form.province" @change="onProvinceChange">
+                <option value="">请选择省份/直辖市</option>
+                <option
+                  v-for="item in CHINA_REGIONS"
+                  :key="item.name"
+                  :value="item.name"
                 >
-                  其他
+                  {{ item.name }}
+                </option>
+              </select>
+            </div>
+
+            <div v-if="form.province && !isMunicipalitySelected" class="form-row">
+              <label><span class="required">*</span>城市</label>
+              <select v-model="form.city">
+                <option value="">请选择城市</option>
+                <option
+                  v-for="city in cityOptions"
+                  :key="city"
+                  :value="city"
+                >
+                  {{ city }}
+                </option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label><span class="required">*</span>咨询产品/服务</label>
+              <div class="catalog-picker" @keydown.esc="catalogMenuOpen = false">
+                <button
+                  ref="catalogTriggerRef"
+                  type="button"
+                  class="catalog-trigger"
+                  :class="{ open: catalogMenuOpen, placeholder: !form.product_key && !form.product_name }"
+                  @click="toggleCatalogMenu"
+                >
+                  <span>{{ catalogDisplayLabel }}</span>
+                  <span class="catalog-caret">▾</span>
                 </button>
+                <Teleport to="body">
+                  <div
+                    v-if="catalogMenuOpen"
+                    class="catalog-menu"
+                    :style="catalogMenuStyle"
+                  >
+                    <template v-if="productItems.length">
+                      <div class="catalog-group-label">产品</div>
+                      <button
+                        v-for="item in productItems"
+                        :key="item.key"
+                        type="button"
+                        class="catalog-option"
+                        :class="{ active: form.product_key === item.key }"
+                        @click="selectCatalogKey(item.key)"
+                      >
+                        {{ item.label }}
+                      </button>
+                    </template>
+                    <template v-if="serviceItems.length">
+                      <div class="catalog-group-label">服务</div>
+                      <button
+                        v-for="item in serviceItems"
+                        :key="item.key"
+                        type="button"
+                        class="catalog-option"
+                        :class="{ active: form.product_key === item.key }"
+                        @click="selectCatalogKey(item.key)"
+                      >
+                        {{ item.label }}
+                      </button>
+                    </template>
+                    <button
+                      type="button"
+                      class="catalog-group-label is-action"
+                      :class="{ active: form.product_key === OTHER_KEY }"
+                      @click="selectCatalogKey(OTHER_KEY)"
+                    >
+                      其他综合咨询
+                    </button>
+                  </div>
+                </Teleport>
               </div>
             </div>
-          </div>
 
-          <div v-if="showSpecField" class="form-row">
-            <label><span v-if="specOptions.length" class="required">*</span>规格/类型</label>
-            <select v-model="form.spec" :disabled="!specOptions.length">
-              <option value="">
-                {{
-                  specOptions.length ? '请选择规格/类型' : '暂无可选规格/类型'
-                }}
-              </option>
-              <option
-                v-for="opt in specOptions"
-                :key="opt.value"
-                :value="opt.value"
-              >
-                {{ opt.label }}{{ opt.price ? ` · ¥${opt.price}` : '' }}
-              </option>
-            </select>
-          </div>
+            <div v-if="showSpecField" class="form-row">
+              <label><span v-if="specOptions.length" class="required">*</span>规格/类型</label>
+              <select v-model="form.spec" :disabled="!specOptions.length">
+                <option value="">
+                  {{
+                    specOptions.length ? '请选择规格/类型' : '暂无可选规格/类型'
+                  }}
+                </option>
+                <option
+                  v-for="opt in specOptions"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ opt.label }}{{ opt.price ? ` · ¥${opt.price}` : '' }}
+                </option>
+              </select>
+            </div>
 
-          <div
-            v-for="field in visibleCustomFields"
-            :key="field.id"
-            class="form-row"
-          >
-            <label><span v-if="field.required" class="required">*</span>{{ field.label }}</label>
-            <select
-              v-if="field.type === 'select'"
-              v-model="form[field.id]"
+            <div
+              v-for="field in visibleCustomFields"
+              :key="field.id"
+              class="form-row"
             >
-              <option value="">{{ field.placeholder || '请选择' }}</option>
-              <option
-                v-for="opt in (field.options || [])"
-                :key="opt"
-                :value="opt"
+              <label><span v-if="field.required" class="required">*</span>{{ field.label }}</label>
+              <select
+                v-if="field.type === 'select'"
+                v-model="form[field.id]"
               >
-                {{ opt }}
-              </option>
-            </select>
-            <input
-              v-else-if="field.type !== 'textarea'"
-              v-model="form[field.id]"
-              :maxlength="field.maxLength || undefined"
-              :type="field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'"
-              :placeholder="field.placeholder || '请输入内容'"
-            />
-            <textarea
-              v-else
-              v-model="form[field.id]"
-              :maxlength="field.maxLength || undefined"
-              rows="3"
-              :placeholder="field.placeholder || '请输入内容'"
-            />
-          </div>
+                <option value="">{{ field.placeholder || '请选择' }}</option>
+                <option
+                  v-for="opt in (field.options || [])"
+                  :key="opt"
+                  :value="opt"
+                >
+                  {{ opt }}
+                </option>
+              </select>
+              <input
+                v-else-if="field.type !== 'textarea'"
+                v-model="form[field.id]"
+                :maxlength="field.maxLength || undefined"
+                :type="field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : 'text'"
+                :placeholder="field.placeholder || '请输入内容'"
+              />
+              <textarea
+                v-else
+                v-model="form[field.id]"
+                :maxlength="field.maxLength || undefined"
+                rows="3"
+                :placeholder="field.placeholder || '请输入内容'"
+              />
+            </div>
 
-          <div class="form-row">
-            <label><span class="required">*</span>需求描述</label>
-            <textarea v-model="form.demand" rows="4" placeholder="请描述您的具体需求..." />
-          </div>
+            <div class="form-row">
+              <label><span class="required">*</span>需求描述</label>
+              <textarea v-model="form.demand" rows="4" placeholder="请描述您的具体需求..." />
+            </div>
 
-          <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
-          <button type="submit" class="btn btn-primary submit-btn" :disabled="loading || formLoading">
-            {{ loading ? '提交中...' : '提交询价' }}
-          </button>
-        </form>
+            <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
+            <button type="submit" class="btn btn-primary submit-btn" :disabled="loading || formLoading">
+              {{ loading ? '提交中...' : '提交询价' }}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </Teleport>
@@ -507,11 +629,28 @@ async function handleSubmit() {
 .dialog {
   background: var(--color-white);
   border-radius: 12px;
-  padding: 32px;
   width: min(520px, 100%);
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-header {
+  flex-shrink: 0;
+  padding: 28px 32px 12px;
+  position: relative;
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 32px 28px;
 }
 
 .close-btn {
@@ -524,18 +663,20 @@ async function handleSubmit() {
   cursor: pointer;
   color: var(--color-text-light);
   line-height: 1;
+  z-index: 2;
 }
 
-.dialog h2 {
+.dialog-header h2 {
   font-size: 22px;
   color: var(--color-primary);
   margin-bottom: 4px;
+  padding-right: 28px;
 }
 
 .subtitle {
   color: var(--color-text-light);
   font-size: 14px;
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .form-row {
@@ -567,18 +708,33 @@ async function handleSubmit() {
   transition: border-color 0.2s;
   font-family: inherit;
   background: #fff;
+  color: #0f172a;
+}
+
+.form-row select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 36px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1.5 1.75L6 6.25L10.5 1.75' stroke='%2394a3b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+  cursor: pointer;
+}
+
+.form-row select:disabled {
+  background-color: #f8fafc;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1.5 1.75L6 6.25L10.5 1.75' stroke='%23cbd5e1' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
 .form-row input:focus,
 .form-row textarea:focus,
 .form-row select:focus {
   border-color: var(--color-primary);
-}
-
-.form-row select:disabled {
-  background: #f8fafc;
-  color: #94a3b8;
-  cursor: not-allowed;
 }
 
 .catalog-picker {
@@ -610,19 +766,21 @@ async function handleSubmit() {
 }
 
 .catalog-caret {
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 1;
+  flex-shrink: 0;
+  width: 12px;
+  height: 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1.5 1.75L6 6.25L10.5 1.75' stroke='%2394a3b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 8px;
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
 }
 
 .catalog-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 5;
-  max-height: 260px;
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: #fff;

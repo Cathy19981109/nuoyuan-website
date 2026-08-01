@@ -148,6 +148,14 @@
                         <p v-if="contactInfoFromExtra(m.extra_json).phone"><span>电话</span>{{ contactInfoFromExtra(m.extra_json).phone }}</p>
                         <p v-if="contactInfoFromExtra(m.extra_json).email"><span>邮箱</span>{{ contactInfoFromExtra(m.extra_json).email }}</p>
                         <p v-if="contactInfoFromExtra(m.extra_json).address"><span>地址</span>{{ contactInfoFromExtra(m.extra_json).address }}</p>
+                        <p v-if="contactInfoFromExtra(m.extra_json).wechat_qr" class="contact-wechat-row">
+                          <span>微信</span>
+                          <img
+                            class="contact-wechat-preview"
+                            :src="toPublicMediaUrl(contactInfoFromExtra(m.extra_json).wechat_qr)"
+                            alt="微信二维码"
+                          />
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -241,6 +249,7 @@
                 v-model="moduleForm.module_template"
                 class="form-control"
                 :disabled="isSubNavGroupForm && !!editingModule"
+                @change="ensureValidLayoutMode"
               >
                 <option v-for="t in availableTemplates" :key="t.code" :value="t.code">{{ t.name }}</option>
               </select>
@@ -254,38 +263,31 @@
               <input class="form-control" value="联系方式模块（固定）" disabled />
             </div>
           </div>
-          <div v-if="showChildLayoutPicker || showNewsLayoutPicker" class="form-group">
+          <div v-if="showLayoutSchemePicker" class="form-group">
             <label><span class="required">*</span>图文布局</label>
             <div class="layout-schemes" role="radiogroup" aria-label="图文布局">
               <button
-                v-for="opt in newsLayoutOptions"
+                v-for="opt in layoutSchemeOptions"
                 :key="opt.value"
                 type="button"
                 class="layout-scheme"
                 role="radio"
                 :aria-checked="moduleForm.layout_mode === opt.value"
                 :aria-label="opt.label"
+                :title="opt.label"
                 :class="{ active: moduleForm.layout_mode === opt.value }"
                 @click="moduleForm.layout_mode = opt.value"
               >
                 <span class="scheme-frame" :class="opt.schemeClass" aria-hidden="true">
-                  <span class="scheme-text">
+                  <span v-if="opt.showText !== false" class="scheme-text">
                     <i /><i /><i />
                   </span>
                   <span class="scheme-img" />
+                  <span v-if="opt.showBtn" class="scheme-btn" />
                 </span>
+                <span class="scheme-label">{{ opt.label }}</span>
               </button>
             </div>
-          </div>
-          <div v-else-if="currentTemplate.code === 'image_text_split'" class="form-group">
-            <label><span class="required">*</span>图文布局</label>
-            <select v-model="moduleForm.layout_mode" class="form-control">
-              <option value="overlay">图内叠加</option>
-              <option value="top">图上</option>
-              <option value="bottom">图下</option>
-              <option value="left">图左</option>
-              <option value="right">图右</option>
-            </select>
           </div>
 
           <div v-if="showTitle && formIsSystemOrBanner" class="form-group">
@@ -297,8 +299,8 @@
             <input v-model="moduleForm.extra_json.subtitle_en" class="form-control" placeholder="如：NUOYUAN BIOTECH" />
           </div>
           <div v-if="showBody" class="form-group">
-            <label><span class="required">*</span>{{ isBannerForm ? '前台文案' : '正文内容' }}</label>
-            <textarea v-model="moduleForm.body_text" class="form-control" rows="4" :placeholder="isBannerForm ? '前台 Banner 说明文字' : ''" />
+            <label><span v-if="bodyRequired" class="required">*</span>{{ isBannerForm ? '前台文案' : '正文内容' }}</label>
+            <textarea v-model="moduleForm.body_text" class="form-control" rows="4" :placeholder="isBannerForm ? '前台 Banner 说明文字' : (['single_video_module','image_jump_button'].includes(currentTemplate.code) ? '选填' : '')" />
           </div>
 
           <template v-if="isContactInfoForm">
@@ -320,10 +322,15 @@
               <label>公司地址</label>
               <input v-model="moduleForm.extra_json.address" class="form-control" />
             </div>
+            <div class="form-group">
+              <label>微信二维码</label>
+              <ImageUploadField v-model="moduleForm.extra_json.wechat_qr" />
+              <div class="hint">前台「联系我们」展示；建议 1:1，推荐 300×300，透明 png，≤50MB</div>
+            </div>
           </template>
 
           <div v-if="showImage" class="form-group">
-            <label><span class="required">*</span>素材上传</label>
+            <label><span v-if="imageRequired" class="required">*</span>素材上传</label>
             <div v-if="isChildForm || currentTemplate.code === 'multi_image_carousel'" class="slot-list">
               <div
                 v-for="(img, idx) in moduleForm.image_list_json"
@@ -359,22 +366,57 @@
 
           <div v-if="currentTemplate.code === 'image_jump_button'" class="form-group">
             <label><span class="required">*</span>跳转方式</label>
-            <select v-model="moduleForm.jump_type" class="form-control">
-              <option value="external">外部链接</option>
-              <option value="product">绑定产品ID</option>
+            <select v-model="moduleForm.jump_type" class="form-control" @change="onJumpTypeChange">
+              <option value="page">页面链接</option>
+              <option value="catalog">产品/服务详情页</option>
             </select>
           </div>
-          <div v-if="currentTemplate.code === 'image_jump_button' && moduleForm.jump_type === 'external'" class="form-group">
-            <label><span class="required">*</span>外部链接</label>
-            <input v-model="moduleForm.link_url" class="form-control" />
+          <div v-if="currentTemplate.code === 'image_jump_button' && moduleForm.jump_type === 'page'" class="form-group">
+            <label><span class="required">*</span>页面链接</label>
+            <input
+              v-model="moduleForm.link_url"
+              class="form-control"
+              placeholder="站内如 /news，外链如 https://..."
+            />
+            <div class="hint">站内路径以 / 开头；外链以 http:// 或 https:// 开头</div>
           </div>
-          <div v-if="currentTemplate.code === 'image_jump_button' && moduleForm.jump_type === 'product'" class="form-group">
-            <label><span class="required">*</span>产品5位编号</label>
-            <div class="toolbar">
-              <input v-model="moduleForm.jump_product_code" class="form-control" style="max-width:220px" />
-              <button class="btn btn-secondary btn-sm" @click="searchProduct">检索</button>
+          <div v-if="currentTemplate.code === 'image_jump_button' && moduleForm.jump_type === 'catalog'" class="form-group catalog-picker">
+            <label><span class="required">*</span>产品/服务选择</label>
+            <div class="catalog-combo">
+              <input
+                v-model="catalogQuery"
+                class="form-control"
+                placeholder="输入名称或编号模糊搜索"
+                autocomplete="off"
+                @focus="openCatalogDropdown"
+                @input="catalogOpen = true"
+              />
+              <div v-if="catalogOpen" class="catalog-dropdown">
+                <button
+                  v-for="opt in filteredCatalogOptions"
+                  :key="opt.key"
+                  type="button"
+                  class="catalog-option"
+                  :class="{ active: isCatalogSelected(opt) }"
+                  @mousedown.prevent="selectCatalogOption(opt)"
+                >
+                  <span class="catalog-kind">{{ opt.kind === 'service' ? '服务' : '产品' }}</span>
+                  <span class="catalog-name">{{ opt.name }}</span>
+                  <span class="catalog-code">{{ opt.code }}</span>
+                </button>
+                <div v-if="!filteredCatalogOptions.length" class="catalog-empty">无匹配结果</div>
+              </div>
             </div>
-            <div v-if="productPreview" class="hint">已匹配：{{ productPreview.name }}（{{ productPreview.product_code }}）</div>
+            <div v-if="selectedCatalogHint" class="hint">已选：{{ selectedCatalogHint }}</div>
+          </div>
+          <div v-if="currentTemplate.code === 'image_jump_button'" class="form-group">
+            <label><span class="required">*</span>按钮文字</label>
+            <input
+              v-model="jumpButtonText"
+              class="form-control"
+              maxlength="40"
+              placeholder="如：查看更多新闻"
+            />
           </div>
 
           <div class="alert" style="background:#eff6ff;color:#1e40af">
@@ -414,16 +456,17 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getEditablePages, createEditablePage, updateEditablePage, deleteEditablePage,
   getNavList, deleteNav,
   getPageTemplates, getPageModules, createPageModule, updatePageModule, deletePageModule, reorderPageModules,
-  searchProductByCode, uploadImageFile, uploadVideoFile,
+  getProductList, getServiceList, uploadImageFile, uploadVideoFile,
 } from '@/api'
 import { toPublicMediaUrl } from '@/utils/media'
 import PreviewAutoCarousel from '@/components/PreviewAutoCarousel.vue'
+import ImageUploadField from '@/components/ImageUploadField.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -438,7 +481,10 @@ const modules = ref([])
 const showModuleDialog = ref(false)
 const editingModule = ref(null)
 const savingModule = ref(false)
-const productPreview = ref(null)
+const catalogOptions = ref([])
+const catalogQuery = ref('')
+const catalogOpen = ref(false)
+const catalogLoaded = ref(false)
 const moduleForm = ref({
   module_name: '',
   module_template: '',
@@ -447,12 +493,130 @@ const moduleForm = ref({
   layout_mode: 'top',
   image_list_json: [],
   video_url: '',
-  jump_type: 'external',
+  jump_type: 'page',
   link_url: '',
   jump_product_code: '',
   parent_id: 0,
   status: 1,
+  extra_json: { button_text: '' },
 })
+
+const jumpButtonText = computed({
+  get() {
+    ensureJumpExtra()
+    return String(moduleForm.value.extra_json?.button_text || '')
+  },
+  set(v) {
+    ensureJumpExtra()
+    moduleForm.value.extra_json.button_text = v
+  },
+})
+
+function ensureJumpExtra() {
+  if (!moduleForm.value.extra_json || typeof moduleForm.value.extra_json !== 'object') {
+    moduleForm.value.extra_json = { button_text: '' }
+  }
+}
+
+function normalizeJumpType(raw) {
+  const t = String(raw || '').trim()
+  if (t === 'catalog' || t === 'product') return 'catalog'
+  return 'page'
+}
+
+function catalogOptionFromRow(row, kind) {
+  const id = Number(row?.id || 0)
+  const code = String(row?.goods_code || row?.product_code || row?.service_code || '').trim()
+  const name = String(row?.name || '').trim() || code || `${kind}-${id}`
+  return {
+    key: `${kind}-${id}`,
+    kind,
+    id,
+    code,
+    name,
+    path: kind === 'service' ? `/services/${id}` : `/products/${id}`,
+    label: `${kind === 'service' ? '服务' : '产品'} · ${name}${code ? `（${code}）` : ''}`,
+  }
+}
+
+async function loadCatalogOptions() {
+  if (catalogLoaded.value) return
+  try {
+    const [productsRes, servicesRes] = await Promise.all([
+      getProductList({ page: 1, pageSize: 200, status: 1 }),
+      getServiceList({ page: 1, pageSize: 200, status: 1 }),
+    ])
+    const products = Array.isArray(productsRes?.list) ? productsRes.list : (Array.isArray(productsRes) ? productsRes : [])
+    const services = Array.isArray(servicesRes?.list) ? servicesRes.list : (Array.isArray(servicesRes) ? servicesRes : [])
+    catalogOptions.value = [
+      ...products.map((row) => catalogOptionFromRow(row, 'product')),
+      ...services.map((row) => catalogOptionFromRow(row, 'service')),
+    ]
+    catalogLoaded.value = true
+  } catch (err) {
+    console.error(err)
+    catalogOptions.value = []
+  }
+}
+
+const filteredCatalogOptions = computed(() => {
+  const q = String(catalogQuery.value || '').trim().toLowerCase()
+  const list = catalogOptions.value || []
+  if (!q) return list.slice(0, 40)
+  return list
+    .filter((opt) => {
+      const hay = `${opt.name} ${opt.code} ${opt.kind} ${opt.path}`.toLowerCase()
+      return hay.includes(q)
+    })
+    .slice(0, 40)
+})
+
+const selectedCatalogHint = computed(() => {
+  const extra = moduleForm.value.extra_json || {}
+  if (extra.catalog_label) return String(extra.catalog_label)
+  if (moduleForm.value.link_url) return String(moduleForm.value.link_url)
+  return ''
+})
+
+function isCatalogSelected(opt) {
+  const extra = moduleForm.value.extra_json || {}
+  if (Number(extra.catalog_id) === opt.id && String(extra.catalog_kind || '') === opt.kind) return true
+  return String(moduleForm.value.link_url || '') === opt.path
+}
+
+function selectCatalogOption(opt) {
+  ensureJumpExtra()
+  moduleForm.value.jump_type = 'catalog'
+  moduleForm.value.link_url = opt.path
+  moduleForm.value.jump_product_code = opt.code || ''
+  moduleForm.value.extra_json.catalog_kind = opt.kind
+  moduleForm.value.extra_json.catalog_id = opt.id
+  moduleForm.value.extra_json.catalog_label = opt.label
+  catalogQuery.value = opt.label
+  catalogOpen.value = false
+}
+
+function openCatalogDropdown() {
+  loadCatalogOptions()
+  catalogOpen.value = true
+}
+
+function onJumpTypeChange() {
+  moduleForm.value.jump_type = normalizeJumpType(moduleForm.value.jump_type)
+  if (moduleForm.value.jump_type === 'catalog') {
+    loadCatalogOptions()
+    const hint = selectedCatalogHint.value
+    if (hint) catalogQuery.value = hint
+  } else {
+    catalogOpen.value = false
+  }
+}
+
+function onDocumentPointerDown(e) {
+  if (!catalogOpen.value) return
+  const root = e.target?.closest?.('.catalog-combo')
+  if (!root) catalogOpen.value = false
+}
 const dialogParentId = ref(0)
 const moduleDragParentId = ref(0)
 
@@ -506,7 +670,7 @@ const showTitle = computed(() => {
   if (isContactInfoForm.value) return true
   if (isBannerForm.value) return true
   if (currentTemplate.value.code === 'multi_image_carousel') return false
-  return ['image_text_split', 'single_video_module'].includes(currentTemplate.value.code)
+  return ['image_text_split', 'single_video_module', 'image_jump_button'].includes(currentTemplate.value.code)
 })
 const showBody = computed(() => {
   if (isSubNavGroupForm.value) return false
@@ -514,13 +678,26 @@ const showBody = computed(() => {
   if (isBannerForm.value) return true
   if (currentTemplate.value.code === 'multi_image_carousel') return false
   if (isChildForm.value) return true
-  return ['image_text_split', 'single_video_module'].includes(currentTemplate.value.code)
+  return ['image_text_split', 'single_video_module', 'image_jump_button'].includes(currentTemplate.value.code)
+})
+const bodyRequired = computed(() => {
+  if (!showBody.value) return false
+  // 视频模块 / 图文跳转：正文可选
+  if (currentTemplate.value.code === 'single_video_module') return false
+  if (currentTemplate.value.code === 'image_jump_button') return false
+  return true
 })
 const showImage = computed(() => {
   if (isSubNavGroupForm.value) return false
   if (isContactInfoForm.value) return false
   if (isChildForm.value) return true
   return ['full_width_single_image', 'image_text_split', 'multi_image_carousel', 'image_jump_button'].includes(currentTemplate.value.code)
+})
+const imageRequired = computed(() => {
+  if (!showImage.value) return false
+  // 图文跳转按钮：配图可选（可仅标题+文案+按钮）
+  if (currentTemplate.value.code === 'image_jump_button') return false
+  return true
 })
 
 const topLevelModules = computed(() =>
@@ -553,16 +730,77 @@ const childAutoTypeHint = computed(() => {
   return n >= 2 ? '多图轮播（自动）' : '图文分栏（自动）'
 })
 
-/** 新闻/应用文章板块：左文右图 / 右文左图 / 上文下图 */
+/** 各模板可用的图文布局示意图；可多选则保留多项 */
+const LAYOUT_SCHEME_POOL = {
+  right: { value: 'right', label: '左文右图', schemeClass: 'scheme-text-left' },
+  left: { value: 'left', label: '右文左图', schemeClass: 'scheme-text-right' },
+  bottom: { value: 'bottom', label: '上文下图', schemeClass: 'scheme-text-top' },
+  top: { value: 'top', label: '上图下文', schemeClass: 'scheme-img-top' },
+  overlay: { value: 'overlay', label: '图内叠加', schemeClass: 'scheme-overlay', showText: false },
+  full: { value: 'full', label: '全幅单图', schemeClass: 'scheme-full', showText: false },
+  carousel: { value: 'full', label: '多图轮播', schemeClass: 'scheme-carousel', showText: false },
+  video_bottom: { value: 'bottom', label: '上视频下文', schemeClass: 'scheme-video-top' },
+  video_top: { value: 'top', label: '上文下视频', schemeClass: 'scheme-video-bottom' },
+  jump_bottom: { value: 'bottom', label: '上图下按钮', schemeClass: 'scheme-jump', showBtn: true, showText: false },
+  jump_left: { value: 'left', label: '左图右按钮', schemeClass: 'scheme-jump-side', showBtn: true, showText: false },
+  container: { value: 'container', label: '子导航容器', schemeClass: 'scheme-container', showText: false },
+}
+
 const newsLayoutOptions = [
-  { value: 'right', label: '左文右图', schemeClass: 'scheme-text-left' },
-  { value: 'left', label: '右文左图', schemeClass: 'scheme-text-right' },
-  { value: 'bottom', label: '上文下图', schemeClass: 'scheme-text-top' },
+  LAYOUT_SCHEME_POOL.right,
+  LAYOUT_SCHEME_POOL.left,
+  LAYOUT_SCHEME_POOL.bottom,
+]
+
+const imageTextLayoutOptions = [
+  LAYOUT_SCHEME_POOL.right,
+  LAYOUT_SCHEME_POOL.left,
+  LAYOUT_SCHEME_POOL.bottom,
+  LAYOUT_SCHEME_POOL.top,
+  LAYOUT_SCHEME_POOL.overlay,
 ]
 
 function normalizeNewsLayoutMode(mode) {
   if (['left', 'right', 'bottom'].includes(mode)) return mode
   return 'bottom'
+}
+
+function normalizeImageTextLayoutMode(mode) {
+  if (['left', 'right', 'top', 'bottom', 'overlay'].includes(mode)) return mode
+  return 'bottom'
+}
+
+const layoutSchemeOptions = computed(() => {
+  if (isContactInfoForm.value) return []
+  if (isSubNavGroupForm.value) return [LAYOUT_SCHEME_POOL.container]
+  if (isBannerForm.value) return [LAYOUT_SCHEME_POOL.full]
+  if (isChildForm.value) return newsLayoutOptions
+
+  const code = currentTemplate.value.code
+  if (code === 'full_width_single_image') return [LAYOUT_SCHEME_POOL.full]
+  if (code === 'image_text_split') {
+    // 新闻/应用等板块沿用三布局；其它页面提供完整图文布局
+    return SECTION_PAGES.includes(pageKey.value) ? newsLayoutOptions : imageTextLayoutOptions
+  }
+  if (code === 'multi_image_carousel') return [LAYOUT_SCHEME_POOL.carousel]
+  if (code === 'single_video_module') {
+    return [LAYOUT_SCHEME_POOL.video_bottom, LAYOUT_SCHEME_POOL.video_top]
+  }
+  if (code === 'image_jump_button') {
+    return [LAYOUT_SCHEME_POOL.jump_bottom, LAYOUT_SCHEME_POOL.jump_left]
+  }
+  return []
+})
+
+const showLayoutSchemePicker = computed(() => layoutSchemeOptions.value.length > 0)
+
+function ensureValidLayoutMode() {
+  const opts = layoutSchemeOptions.value
+  if (!opts.length) return
+  const current = String(moduleForm.value.layout_mode || '')
+  if (!opts.some((o) => o.value === current)) {
+    moduleForm.value.layout_mode = opts[0].value
+  }
 }
 
 const templateRuleText = computed(() => {
@@ -581,25 +819,14 @@ const templateRuleText = computed(() => {
   return currentTemplate.value.imageRule || '请选择模板'
 })
 
-const showChildLayoutPicker = computed(() => isChildForm.value)
-
 const formIsSystemOrBanner = computed(() => {
   if (isContactInfoForm.value) return true
   if (editingModule.value && (isEditLockedModule(editingModule.value) || isFixedTopModule(editingModule.value))) {
     return true
   }
-  const key = String(editingModule.value?.extra_json?.system_key || '')
+  const key = String(editingModule.value?.extra_json?.system_key || moduleForm.value?.extra_json?.system_key || '')
   if (key.endsWith('_banner')) return true
-  return moduleForm.value.module_template === 'full_width_single_image' && !isChildForm.value && !isSubNavGroupForm.value
-})
-
-const showNewsLayoutPicker = computed(() => {
-  if (isChildForm.value) return false
-  if (isContactInfoForm.value) return false
-  if (isCarouselOnlyForm.value) return false
-  if (!SECTION_PAGES.includes(pageKey.value)) return false
-  if (formIsSystemOrBanner.value) return false
-  return currentTemplate.value.code === 'image_text_split'
+  return false
 })
 
 function templateName(code) {
@@ -675,6 +902,7 @@ function contactInfoFromExtra(extra = {}) {
     phone: String(extra.phone || '').trim(),
     email: String(extra.email || '').trim(),
     address: String(extra.address || '').trim(),
+    wechat_qr: String(extra.wechat_qr || '').trim(),
   }
 }
 
@@ -781,6 +1009,28 @@ async function loadModules() {
         body_text: '专注基因编辑核心服务与科研实验试剂，为生命科学研究提供高品质解决方案',
         image_list_json: [{ name: 'home-banner', url: '/uploads/images/img-1785568646891-xal7uj.jpg' }],
         extra_json: { system_key: 'home_banner', subtitle_en: 'NUOYUAN BIOTECH' },
+      },
+      {
+        module_name: '核心优势',
+        module_template: 'full_width_single_image',
+        main_title: '核心优势',
+        body_text: '',
+        image_list_json: [
+          { name: 'home-advantages', url: '/uploads/images/home-advantages-full.png' },
+          { name: 'home-advantages-alt', url: '/uploads/images/home-advantages-alt.png' },
+        ],
+        extra_json: { system_key: 'home_advantages' },
+      },
+      {
+        module_name: '新闻动态',
+        module_template: 'image_jump_button',
+        main_title: '新闻动态',
+        body_text: '了解最新行业资讯与公司动态',
+        layout_mode: 'bottom',
+        jump_type: 'page',
+        link_url: '/news',
+        image_list_json: [],
+        extra_json: { system_key: 'home_news_jump', button_text: '查看更多新闻' },
       },
       {
         module_name: '发现产品与服务',
@@ -1042,6 +1292,7 @@ async function loadModules() {
           phone: '',
           email: '',
           address: '',
+          wechat_qr: '',
         },
       },
     ],
@@ -1186,7 +1437,7 @@ async function ensureUniqueSystemBanner() {
   const legacyHome = key === 'home'
     ? rows.filter((m) => {
       if (m?.extra_json?.system_key === bannerKey) return false
-      if (m?.module_template === 'full_width_single_image') return true
+      // 仅合并历史 Banner 命名，勿删其它全屏宽幅单图（如核心优势）
       const name = String(m?.module_name || '')
       return /主横幅|Banner模块|^banner$/i.test(name)
     })
@@ -1371,7 +1622,8 @@ function openModuleDialog(item = null, options = {}) {
   }
   dialogParentId.value = parentId
   editingModule.value = item
-  productPreview.value = null
+  catalogOpen.value = false
+  catalogQuery.value = ''
   if (item) {
     const extra = item.extra_json && typeof item.extra_json === 'object' ? { ...item.extra_json } : {}
     if (isContactInfoModule(item)) {
@@ -1380,15 +1632,25 @@ function openModuleDialog(item = null, options = {}) {
     if (isBannerModule(item)) {
       extra.subtitle_en = String(extra.subtitle_en || '').trim()
     }
+    if (item.module_template === 'image_jump_button') {
+      extra.button_text = String(extra.button_text || '').trim() || '查看详情'
+    }
+    const jumpType = item.module_template === 'image_jump_button'
+      ? normalizeJumpType(item.jump_type)
+      : (item.jump_type || 'page')
     moduleForm.value = {
       ...item,
       image_list_json: Array.isArray(item.image_list_json) ? [...item.image_list_json] : [],
       layout_mode: item.layout_mode || 'top',
-      jump_type: item.jump_type || 'external',
+      jump_type: jumpType,
       jump_product_code: item.jump_product_code || '',
       video_url: item.video_url || '',
       parent_id: Number(item.parent_id || 0),
       extra_json: extra,
+    }
+    if (item.module_template === 'image_jump_button' && jumpType === 'catalog') {
+      catalogQuery.value = String(extra.catalog_label || item.link_url || '')
+      loadCatalogOptions()
     }
     if (isBannerModule(item) && pageKey.value === 'home') {
       if (!String(moduleForm.value.main_title || '').trim()) moduleForm.value.main_title = '诺元智合'
@@ -1408,11 +1670,12 @@ function openModuleDialog(item = null, options = {}) {
       layout_mode: 'bottom',
       image_list_json: [{ name: '', url: '' }],
       video_url: '',
-      jump_type: 'external',
+      jump_type: 'page',
       link_url: '',
       jump_product_code: '',
       parent_id: parentId,
       status: 1,
+      extra_json: { button_text: '' },
     }
   } else {
     const defaultTpl = (templates.value.find((t) => t.code === 'image_text_split')
@@ -1426,11 +1689,12 @@ function openModuleDialog(item = null, options = {}) {
       layout_mode: 'top',
       image_list_json: [],
       video_url: '',
-      jump_type: 'external',
+      jump_type: 'page',
       link_url: '',
       jump_product_code: '',
       parent_id: 0,
       status: 1,
+      extra_json: { button_text: '查看详情' },
     }
   }
   // 系统 Banner/列表：编辑框展示统一名称
@@ -1450,7 +1714,10 @@ function openModuleDialog(item = null, options = {}) {
   }
   if ((isChildForm.value || SECTION_PAGES.includes(pageKey.value)) && ['image_text_split', 'multi_image_carousel'].includes(moduleForm.value.module_template)) {
     moduleForm.value.layout_mode = normalizeNewsLayoutMode(moduleForm.value.layout_mode)
+  } else if (moduleForm.value.module_template === 'image_text_split') {
+    moduleForm.value.layout_mode = normalizeImageTextLayoutMode(moduleForm.value.layout_mode)
   }
+  ensureValidLayoutMode()
   if ((isChildForm.value || moduleForm.value.module_template === 'multi_image_carousel') && !moduleForm.value.image_list_json.length) {
     moduleForm.value.image_list_json = [{ name: '', url: '' }]
   }
@@ -1521,11 +1788,6 @@ function onVideoSelect(e) {
   doUpload().catch((err) => alert(err.message))
 }
 
-async function searchProduct() {
-  if (!moduleForm.value.jump_product_code) return
-  productPreview.value = await searchProductByCode(moduleForm.value.jump_product_code)
-}
-
 async function saveModule() {
   const parentId = Number(dialogParentId.value || moduleForm.value.parent_id || 0)
   const isChild = parentId > 0
@@ -1557,8 +1819,8 @@ async function saveModule() {
 
   if (isSystemOrBanner && showTitle.value && !moduleForm.value.main_title) return alert('请填写模块标题')
   if (!isSystemOrBanner && !isSubNav && !String(moduleForm.value.main_title || '').trim()) return alert('请填写自定义名称')
-  if (showBody.value && !moduleForm.value.body_text) return alert('请填写正文内容')
-  if (showImage.value) {
+  if (showBody.value && bodyRequired.value && !moduleForm.value.body_text) return alert('请填写正文内容')
+  if (showImage.value && imageRequired.value) {
     const validCount = countValidImages(moduleForm.value.image_list_json)
     if (!validCount) return alert('请上传素材')
     if (isCarouselOnlyForm.value && validCount < 2) return alert('多图轮播至少上传 2 张统一 16:9 长方形图片')
@@ -1569,16 +1831,31 @@ async function saveModule() {
   }
   if (currentTemplate.value.code === 'single_video_module' && !moduleForm.value.video_url) return alert('请上传视频')
   if (currentTemplate.value.code === 'image_jump_button') {
-    if (moduleForm.value.jump_type === 'external' && !moduleForm.value.link_url) return alert('请填写外部链接')
-    if (moduleForm.value.jump_type === 'product' && !moduleForm.value.jump_product_code) return alert('请填写产品编号')
+    ensureJumpExtra()
+    moduleForm.value.jump_type = normalizeJumpType(moduleForm.value.jump_type)
+    if (!String(moduleForm.value.extra_json.button_text || '').trim()) {
+      return alert('请填写按钮文字')
+    }
+    if (moduleForm.value.jump_type === 'page' && !String(moduleForm.value.link_url || '').trim()) {
+      return alert('请填写页面链接')
+    }
+    if (moduleForm.value.jump_type === 'catalog') {
+      const hasTarget = String(moduleForm.value.link_url || '').trim()
+        || (moduleForm.value.extra_json.catalog_id && moduleForm.value.extra_json.catalog_kind)
+      if (!hasTarget) return alert('请选择产品或服务')
+    }
   }
   if (isChild || (SECTION_PAGES.includes(pageKey.value) && moduleForm.value.module_template === 'image_text_split')) {
     moduleForm.value.layout_mode = normalizeNewsLayoutMode(moduleForm.value.layout_mode)
+  } else if (moduleForm.value.module_template === 'image_text_split') {
+    moduleForm.value.layout_mode = normalizeImageTextLayoutMode(moduleForm.value.layout_mode)
+  } else {
+    ensureValidLayoutMode()
   }
   // 独立多图轮播：仅图片，清空正文
   if (isCarouselOnlyForm.value) {
     moduleForm.value.body_text = ''
-    moduleForm.value.layout_mode = 'bottom'
+    moduleForm.value.layout_mode = 'full'
   }
   savingModule.value = true
   try {
@@ -1728,7 +2005,12 @@ function openPreview() {
 }
 
 onMounted(async () => {
+  document.addEventListener('pointerdown', onDocumentPointerDown)
   await loadPages()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
 })
 
 watch(
@@ -1755,6 +2037,13 @@ watch(
         moduleForm.value.image_list_json = [{ name: '', url: '' }, { name: '', url: '' }]
       }
     }
+    if (code === 'image_jump_button') {
+      moduleForm.value.jump_type = normalizeJumpType(moduleForm.value.jump_type)
+      ensureJumpExtra()
+      if (!String(moduleForm.value.extra_json.button_text || '').trim()) {
+        moduleForm.value.extra_json.button_text = '查看详情'
+      }
+    }
   }
 )
 </script>
@@ -1762,10 +2051,10 @@ watch(
 <style scoped>
 .page-editor-sticky {
   position: sticky;
-  top: var(--header-height);
+  top: calc(var(--header-height) + var(--breadcrumb-height));
   z-index: 40;
-  margin: -24px -24px 16px;
-  padding: 16px 24px 12px;
+  margin: 0 -24px 16px;
+  padding: 4px 24px 12px;
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
   box-shadow: 0 8px 16px -12px rgba(15, 23, 42, 0.35);
@@ -2104,6 +2393,20 @@ watch(
   display: grid;
   gap: 6px;
 }
+.contact-wechat-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.contact-wechat-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  vertical-align: top;
+}
 .contact-info-preview-text p {
   margin: 0;
   font-size: 12px;
@@ -2123,16 +2426,18 @@ watch(
   gap: 12px;
 }
 .layout-scheme {
-  width: 88px;
-  height: 64px;
-  padding: 0;
+  width: 104px;
+  min-height: 92px;
+  padding: 8px 6px 8px;
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
   background: #fff;
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 6px;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 .layout-scheme:hover {
@@ -2150,13 +2455,35 @@ watch(
   display: grid;
   gap: 4px;
   pointer-events: none;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.scheme-label {
+  font-size: 11px;
+  line-height: 1.25;
+  color: #64748b;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.layout-scheme.active .scheme-label {
+  color: #0b2d5c;
+  font-weight: 600;
 }
 .scheme-text-left,
-.scheme-text-right {
+.scheme-text-right,
+.scheme-jump-side {
   grid-template-columns: 1fr 1fr;
   align-items: stretch;
 }
-.scheme-text-top {
+.scheme-text-top,
+.scheme-img-top,
+.scheme-video-top,
+.scheme-video-bottom,
+.scheme-jump {
   grid-template-rows: auto 1fr;
 }
 .scheme-text {
@@ -2181,20 +2508,191 @@ watch(
   background: #cbd5e1;
   min-height: 100%;
 }
+.scheme-btn {
+  display: block;
+  height: 8px;
+  border-radius: 3px;
+  background: #86efac;
+  width: 56%;
+  justify-self: center;
+  align-self: center;
+}
 .scheme-text-top .scheme-text { order: 1; }
 .scheme-text-top .scheme-img {
   order: 2;
   min-height: 18px;
 }
+.scheme-img-top .scheme-img {
+  order: 1;
+  min-height: 18px;
+}
+.scheme-img-top .scheme-text { order: 2; }
 .scheme-text-left .scheme-text { order: 1; }
 .scheme-text-left .scheme-img { order: 2; }
 .scheme-text-right .scheme-img { order: 1; }
 .scheme-text-right .scheme-text { order: 2; }
+.scheme-overlay {
+  display: block;
+}
+.scheme-overlay .scheme-img {
+  width: 100%;
+  height: 100%;
+  min-height: 40px;
+}
+.scheme-overlay::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 10px;
+  height: 14px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 6px 0 rgba(255, 255, 255, 0.45);
+}
+.scheme-full,
+.scheme-carousel,
+.scheme-container {
+  display: block;
+}
+.scheme-full .scheme-img,
+.scheme-carousel .scheme-img,
+.scheme-container .scheme-img {
+  width: 100%;
+  height: 100%;
+  min-height: 40px;
+}
+.scheme-carousel .scheme-img {
+  background: repeating-linear-gradient(
+    90deg,
+    #cbd5e1 0,
+    #cbd5e1 30%,
+    #94a3b8 30%,
+    #94a3b8 33%,
+    #cbd5e1 33%,
+    #cbd5e1 66%,
+    #94a3b8 66%,
+    #94a3b8 69%,
+    #cbd5e1 69%,
+    #cbd5e1 100%
+  );
+}
+.scheme-container .scheme-img {
+  background:
+    linear-gradient(#e2e8f0, #e2e8f0) 8px 8px / calc(100% - 16px) 6px no-repeat,
+    linear-gradient(#cbd5e1, #cbd5e1);
+  border: 1px dashed #94a3b8;
+}
+.scheme-video-top .scheme-img {
+  order: 1;
+  min-height: 18px;
+  background: #94a3b8;
+}
+.scheme-video-top .scheme-text { order: 2; }
+.scheme-video-bottom .scheme-text { order: 1; }
+.scheme-video-bottom .scheme-img {
+  order: 2;
+  min-height: 18px;
+  background: #94a3b8;
+}
+.scheme-jump {
+  grid-template-rows: 1fr auto;
+}
+.scheme-jump .scheme-img {
+  order: 1;
+  min-height: 22px;
+}
+.scheme-jump .scheme-btn {
+  order: 2;
+  margin-top: 2px;
+}
+.scheme-jump-side {
+  grid-template-columns: 1.2fr 0.8fr;
+  align-items: center;
+}
+.scheme-jump-side .scheme-img { order: 1; min-height: 100%; }
+.scheme-jump-side .scheme-btn {
+  order: 2;
+  width: 70%;
+  height: 10px;
+}
+.catalog-picker { position: relative; }
+.catalog-combo { position: relative; }
+.catalog-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  max-height: 240px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+.catalog-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 12px;
+  border: none;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  color: #0f172a;
+}
+.catalog-option:hover,
+.catalog-option.active {
+  background: #eff6ff;
+}
+.catalog-kind {
+  font-size: 11px;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.catalog-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.catalog-code {
+  color: #64748b;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.catalog-empty {
+  padding: 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+}
 .layout-scheme.active .scheme-text i {
   background: #64748b;
 }
 .layout-scheme.active .scheme-img {
   background: #94a3b8;
+}
+.layout-scheme.active .scheme-carousel .scheme-img {
+  background: repeating-linear-gradient(
+    90deg,
+    #94a3b8 0,
+    #94a3b8 30%,
+    #64748b 30%,
+    #64748b 33%,
+    #94a3b8 33%,
+    #94a3b8 66%,
+    #64748b 66%,
+    #64748b 69%,
+    #94a3b8 69%,
+    #94a3b8 100%
+  );
 }
 @media (max-width: 720px) {
   .preview-image-text.layout-left,
