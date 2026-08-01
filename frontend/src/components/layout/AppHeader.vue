@@ -519,6 +519,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
+  .logo-img {
+    max-height: 36px;
+  }
+
   .nav {
     display: none;
     position: absolute;
@@ -527,8 +531,11 @@ onBeforeUnmount(() => {
     right: 0;
     flex-direction: column;
     background: var(--color-primary);
-    padding: 12px;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
     box-shadow: var(--shadow-md);
+    max-height: calc(100dvh - var(--header-height));
+    overflow-y: auto;
+    z-index: 40;
   }
 
   .nav.open {
@@ -538,11 +545,44 @@ onBeforeUnmount(() => {
   .nav-item {
     width: 100%;
     text-align: center;
-    padding: 12px;
+    padding: 14px 12px;
+    font-size: 16px;
+    min-height: 48px;
   }
 
   .menu-toggle {
     display: flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .actions {
+    gap: 6px;
+  }
+
+  .inquiry-btn,
+  .actions .btn-primary {
+    min-height: 40px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 430px) {
+  .header-inner {
+    gap: 8px;
+  }
+
+  .inquiry-btn,
+  .actions .btn-primary {
+    padding: 8px 12px;
+  }
+
+  .suggest-panel {
+    left: 12px;
+    right: 12px;
+    width: auto;
   }
 }
 </style>

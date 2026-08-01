@@ -251,6 +251,10 @@ function isExternal(url) {
 }
 
 @media (max-width: 640px) {
+  .footer {
+    padding: 40px 0 calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
   .footer-grid,
   .footer-grid.cols-2,
   .footer-grid.cols-3,
@@ -258,6 +262,27 @@ function isExternal(url) {
   .footer-grid.cols-auto {
     grid-template-columns: 1fr;
     gap: 28px;
+  }
+
+  .footer-col h4 {
+    font-size: 15px;
+  }
+
+  .footer-col a {
+    font-size: 15px;
+    margin-bottom: 6px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+  }
+
+  .legal-meta {
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .brand-logo {
+    height: 40px;
   }
 }
 </style>

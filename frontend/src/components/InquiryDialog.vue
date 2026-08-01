@@ -850,4 +850,47 @@ async function handleSubmit() {
   font-size: 16px;
   margin-bottom: 24px;
 }
+
+@media (max-width: 430px) {
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .dialog {
+    width: 100%;
+    max-height: min(92dvh, 100%);
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .dialog-header {
+    padding: 20px 18px 12px;
+  }
+
+  .dialog-body {
+    padding: 16px 18px 24px;
+  }
+
+  .dialog-header h2 {
+    font-size: 20px;
+  }
+
+  .form-row label {
+    font-size: 15px;
+  }
+
+  .form-row input,
+  .form-row textarea,
+  .form-row select,
+  .catalog-trigger {
+    font-size: 16px;
+    min-height: 46px;
+  }
+
+  .submit-btn {
+    min-height: 48px;
+    font-size: 16px;
+  }
+}
 </style>

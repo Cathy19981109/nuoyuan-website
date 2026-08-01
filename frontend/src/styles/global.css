@@ -12,8 +12,15 @@
   --container-width: 1200px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.1);
-  /* 默认视觉比例：在原先 70% 基础上调至其 125%（约 87.5%） */
+  /* 桌面默认视觉比例；手机端关闭，避免字过小 */
   --page-zoom: 0.875;
+  --text-body: 16px;
+  --text-title: 32px;
+  --text-hero: 48px;
+  --section-pad-y: 72px;
+  --container-gutter: 24px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
 * {
@@ -24,6 +31,8 @@
 
 html {
   zoom: var(--page-zoom);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html,
@@ -37,7 +46,9 @@ body {
     'Microsoft YaHei', sans-serif;
   color: var(--color-text);
   background: var(--color-white);
-  line-height: 1.6;
+  font-size: var(--text-body);
+  line-height: 1.65;
+  padding-bottom: var(--safe-bottom);
 }
 
 a {
@@ -51,7 +62,7 @@ img {
 }
 
 .container {
-  width: min(var(--container-width), calc(100% - 48px));
+  width: min(var(--container-width), calc(100% - (var(--container-gutter) * 2)));
   margin: 0 auto;
 }
 
@@ -67,6 +78,7 @@ img {
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
+  min-height: 44px;
 }
 
 .btn-primary {
@@ -89,21 +101,27 @@ img {
 }
 
 .section {
-  padding: 72px 0;
+  padding: var(--section-pad-y) 0;
 }
 
 .section-title {
-  font-size: 32px;
+  font-size: var(--text-title);
   font-weight: 700;
   text-align: center;
   margin-bottom: 12px;
   color: var(--color-primary);
+  line-height: 1.3;
 }
 
 .section-subtitle {
   text-align: center;
   color: var(--color-text-light);
   margin-bottom: 48px;
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 36em;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .card-grid {
@@ -148,4 +166,86 @@ img {
 .page-banner p {
   opacity: 0.85;
   font-size: 16px;
+}
+
+/* iPhone 15 / 15 Pro（393）及同宽机型：关闭缩放、放大可读性 */
+@media (max-width: 430px) {
+  :root {
+    --page-zoom: 1;
+    --header-height: 60px;
+    --text-body: 16px;
+    --text-title: 24px;
+    --text-hero: 28px;
+    --section-pad-y: 40px;
+    --container-gutter: 16px;
+  }
+
+  html {
+    zoom: 1;
+  }
+
+  body {
+    line-height: 1.7;
+  }
+
+  .section-subtitle {
+    font-size: 15px;
+    margin-bottom: 28px;
+    padding: 0 4px;
+  }
+
+  .btn {
+    font-size: 15px;
+    padding: 12px 18px;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+
+  .page-banner {
+    padding: 36px 0 32px;
+  }
+
+  .page-banner h1 {
+    font-size: 26px;
+  }
+
+  .page-banner p {
+    font-size: 15px;
+    padding: 0 8px;
+  }
+
+  .loading,
+  .empty {
+    padding: 48px 16px;
+    font-size: 15px;
+  }
+}
+
+/* 小平板 / 大屏手机横竖过渡 */
+@media (min-width: 431px) and (max-width: 768px) {
+  :root {
+    --page-zoom: 1;
+    --header-height: 64px;
+    --text-title: 28px;
+    --section-pad-y: 48px;
+    --container-gutter: 20px;
+  }
+
+  html {
+    zoom: 1;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
 }

@@ -94,10 +94,39 @@ const heroStyle = computed(() => {
   .catalog-hero {
     background-position: center center;
     padding: 40px 0 36px;
+    min-height: 220px;
+  }
+
+  .catalog-hero.has-image {
+    min-height: 240px;
   }
 
   .hero-overlay {
     background: linear-gradient(180deg, rgba(8, 28, 58, 0.72) 0%, rgba(8, 28, 58, 0.55) 100%);
+  }
+
+  .hero-copy h1 {
+    font-size: 26px;
+  }
+
+  .hero-copy p {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 430px) {
+  .catalog-hero {
+    padding: 32px 0 28px;
+  }
+
+  .hero-copy h1 {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+
+  .hero-copy p {
+    font-size: 15px;
+    line-height: 1.7;
   }
 }
 </style>

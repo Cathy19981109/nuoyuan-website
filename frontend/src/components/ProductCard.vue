@@ -211,4 +211,45 @@ function onInquiry() {
 .link-inquiry:hover {
   background: #f0fdf4;
 }
+
+@media (max-width: 430px) {
+  .card-image {
+    height: 200px;
+  }
+
+  .card-body {
+    padding: 16px;
+  }
+
+  .card-body h3 {
+    font-size: 17px;
+    line-height: 1.4;
+  }
+
+  .card-body p {
+    font-size: 14px;
+    -webkit-line-clamp: 3;
+    line-height: 1.6;
+  }
+
+  .code {
+    font-size: 13px !important;
+  }
+
+  .spec-select {
+    padding: 12px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .link-detail,
+  .link-inquiry {
+    padding: 14px 10px;
+    font-size: 14px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
 </style>

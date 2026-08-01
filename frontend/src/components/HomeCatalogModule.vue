@@ -447,7 +447,60 @@ onBeforeUnmount(() => {
   }
 
   .catalog-track {
-    grid-auto-columns: 85%;
+    grid-auto-columns: 88%;
+    gap: 14px;
+    padding-bottom: 8px;
+  }
+
+  .catalog-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 20px;
+    gap: 10px;
+  }
+
+  .catalog-select {
+    width: 100%;
+    min-width: 0;
+    height: 46px;
+    font-size: 15px;
+  }
+
+  .catalog-search {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .catalog-input {
+    height: 46px;
+    font-size: 16px; /* iOS 避免自动放大输入框 */
+  }
+
+  .catalog-search-btn {
+    height: 46px;
+    padding: 0 16px;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .section-action {
+    margin-top: 24px;
+  }
+
+  .section-action .btn {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .catalog-track {
+    grid-auto-columns: 92%;
+  }
+
+  .catalog-section .section-subtitle {
+    font-size: 15px;
+    padding: 0 2px;
   }
 }
 </style>

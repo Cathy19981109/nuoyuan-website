@@ -143,9 +143,10 @@ onMounted(async () => {
 }
 
 .hero h1 {
-  font-size: 48px;
+  font-size: var(--text-hero, 48px);
   font-weight: 700;
   margin-bottom: 8px;
+  line-height: 1.25;
 }
 
 .hero-en {
@@ -193,13 +194,44 @@ onMounted(async () => {
 }
 
 @media (max-width: 768px) {
-  .hero h1 {
-    font-size: 32px;
+  .hero {
+    padding: 48px 0 56px;
+  }
+
+  .hero-en {
+    letter-spacing: 2px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .hero-desc {
+    font-size: 16px;
+    margin-bottom: 28px;
+    padding: 0 4px;
   }
 
   .hero-actions {
     flex-direction: column;
     align-items: center;
+  }
+
+  .advantage-full img {
+    max-height: 52vw;
+  }
+}
+
+@media (max-width: 430px) {
+  .hero {
+    padding: 40px 0 48px;
+  }
+
+  .hero h1 {
+    font-size: 28px;
+  }
+
+  .hero-desc {
+    font-size: 15px;
+    line-height: 1.75;
   }
 }
 </style>

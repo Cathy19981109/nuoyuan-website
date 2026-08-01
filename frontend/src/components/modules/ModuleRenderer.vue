@@ -313,5 +313,36 @@ function onImgError(event) {
   .jump-box.layout-left {
     grid-template-columns: 1fr;
   }
+
+  .dynamic-module {
+    padding: 12px 0;
+  }
+
+  .text-box h3,
+  .jump-text h3,
+  .video-text h3 {
+    font-size: 22px;
+    line-height: 1.35;
+  }
+
+  .text-box p,
+  .jump-text p,
+  .video-text p {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+}
+
+@media (max-width: 430px) {
+  .text-box h3,
+  .jump-text h3,
+  .video-text h3 {
+    font-size: 20px;
+  }
+
+  .jump-actions .btn {
+    width: 100%;
+    max-width: none;
+  }
 }
 </style>

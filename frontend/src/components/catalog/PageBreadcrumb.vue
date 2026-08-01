@@ -40,6 +40,17 @@ defineProps({
   color: #94a3b8;
 }
 
+@media (max-width: 430px) {
+  .page-breadcrumb {
+    padding: 12px 0;
+  }
+
+  .crumb-list {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+}
+
 .crumb-item {
   display: inline-flex;
   align-items: center;
