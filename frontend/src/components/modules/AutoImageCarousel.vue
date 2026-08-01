@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const props = defineProps({
   images: { type: Array, default: () => [] },
@@ -30,9 +31,7 @@ const current = computed(() => list.value[index.value] || null)
 const showControls = computed(() => list.value.length > 1)
 
 function toPublicUrl(url) {
-  if (!url) return ''
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return url.startsWith('/') ? url : `/${url}`
+  return toPublicMediaUrl(url)
 }
 
 function onImgError(event) {

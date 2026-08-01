@@ -5,6 +5,7 @@ import HomeCatalogModule from '@/components/HomeCatalogModule.vue'
 import ModuleRenderer from '@/components/modules/ModuleRenderer.vue'
 import { applySeoMeta } from '@/composables/useSeo'
 import { useCatalogModules } from '@/composables/useCatalogModules'
+import { toPublicMediaUrl } from '@/utils/media'
 
 defineProps({
   siteConfig: { type: Object, default: () => ({}) },
@@ -46,7 +47,7 @@ const advantageImages = computed(() => {
     : []
   return list
     .map((item) => (typeof item === 'string' ? item : item?.url || ''))
-    .map((url) => String(url || '').trim())
+    .map((url) => toPublicMediaUrl(String(url || '').trim()))
     .filter(Boolean)
 })
 
@@ -63,11 +64,10 @@ const heroDesc = computed(() =>
 )
 
 const heroStyle = computed(() => {
-  const url = bannerImage.value
+  const url = toPublicMediaUrl(bannerImage.value)
   if (!url) return undefined
-  const src = url.startsWith('http') || url.startsWith('/') ? url : `/${url}`
   return {
-    backgroundImage: `linear-gradient(135deg, rgba(11, 45, 92, 0.72) 0%, rgba(15, 23, 42, 0.78) 100%), url(${src})`,
+    backgroundImage: `linear-gradient(135deg, rgba(11, 45, 92, 0.72) 0%, rgba(15, 23, 42, 0.78) 100%), url(${url})`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
   }

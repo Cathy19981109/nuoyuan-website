@@ -104,6 +104,7 @@
 <script setup>
 import { computed, defineAsyncComponent } from 'vue'
 import AutoImageCarousel from './AutoImageCarousel.vue'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const SubNavModule = defineAsyncComponent(() => import('./SubNavModule.vue'))
 
@@ -192,9 +193,7 @@ function jumpTarget(item) {
 }
 
 function toPublicUrl(url) {
-  if (!url) return ''
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return url.startsWith('/') ? url : `/${url}`
+  return toPublicMediaUrl(url)
 }
 
 function onImgError(event) {

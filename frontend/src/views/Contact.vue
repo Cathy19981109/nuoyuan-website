@@ -6,6 +6,7 @@ import PageBreadcrumb from '@/components/catalog/PageBreadcrumb.vue'
 import { applySeoMeta } from '@/composables/useSeo'
 import { useCatalogModules } from '@/composables/useCatalogModules'
 import contactIllustration from '@/assets/images/contact-support-illustration.png'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const props = defineProps({
   siteConfig: { type: Object, default: () => ({}) },
@@ -27,9 +28,7 @@ const contactInfoModule = computed(() =>
 )
 
 function toPublicUrl(url) {
-  if (!url) return ''
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return url.startsWith('/') ? url : `/${url}`
+  return toPublicMediaUrl(url)
 }
 
 const contactInfo = computed(() => {

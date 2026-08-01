@@ -16,6 +16,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -24,9 +25,7 @@ const props = defineProps({
 })
 
 function toPublicUrl(url) {
-  if (!url) return ''
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
-  return url.startsWith('/') ? url : `/${url}`
+  return toPublicMediaUrl(url)
 }
 
 const heroStyle = computed(() => {

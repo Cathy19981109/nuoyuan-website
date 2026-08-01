@@ -7,6 +7,7 @@ import AppFooter from './AppFooter.vue'
 import InquiryDialog from '../InquiryDialog.vue'
 import { applySeoMeta } from '@/composables/useSeo'
 import { applyFavicon } from '@/utils/favicon'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,6 +15,10 @@ const navList = ref([])
 const siteConfig = ref({})
 const showInquiry = ref(false)
 const inquiryProduct = ref(null)
+
+const brandLogoSrc = computed(() =>
+  toPublicMediaUrl(siteConfig.value.brand_logo || siteConfig.value.site_logo || '')
+)
 
 const isPreviewMode = computed(() => {
   const q = route.query?.preview
@@ -32,7 +37,7 @@ async function loadData() {
     const [nav, config] = await Promise.all([getNav(), getConfig()])
     navList.value = nav || []
     siteConfig.value = config || {}
-    applyFavicon(config?.icon_logo || config?.brand_logo || '/favicon.png')
+    applyFavicon(toPublicMediaUrl(config?.icon_logo || config?.brand_logo || '') || '/favicon.png')
     if (!showComingSoon.value) {
       applySeoMeta({ pageKey: 'home' })
     } else {
@@ -93,9 +98,9 @@ defineExpose({ openInquiry })
     <div v-if="showComingSoon" class="coming-soon">
       <div class="coming-card">
         <img
-          v-if="siteConfig.brand_logo || siteConfig.site_logo"
+          v-if="brandLogoSrc"
           class="coming-logo"
-          :src="siteConfig.brand_logo || siteConfig.site_logo"
+          :src="brandLogoSrc"
           alt="品牌 Logo"
         />
         <h1>即将上线</h1>

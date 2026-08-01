@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { searchSite } from '@/api'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const props = defineProps({
   navList: { type: Array, default: () => [] },
@@ -21,6 +22,10 @@ const searchLoading = ref(false)
 const showSuggestions = ref(false)
 let searchTimer = null
 let searchSeq = 0
+
+const brandLogoSrc = computed(() =>
+  toPublicMediaUrl(props.siteConfig.brand_logo || props.siteConfig.site_logo || '')
+)
 
 const navRouteMap = {
   首页: '/',
@@ -184,9 +189,9 @@ onBeforeUnmount(() => {
     <div class="container header-inner">
       <router-link to="/" class="logo" @click="mobileMenuOpen = false">
         <img
-          v-if="siteConfig.brand_logo || siteConfig.site_logo"
+          v-if="brandLogoSrc"
           class="logo-img"
-          :src="siteConfig.brand_logo || siteConfig.site_logo"
+          :src="brandLogoSrc"
           alt="品牌 Logo"
         />
         <div v-else class="logo-fallback">

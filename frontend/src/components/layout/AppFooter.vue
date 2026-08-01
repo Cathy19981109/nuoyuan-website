@@ -1,9 +1,14 @@
 <script setup>
 import { computed } from 'vue'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const props = defineProps({
   siteConfig: { type: Object, default: () => ({}) },
 })
+
+const brandLogoSrc = computed(() =>
+  toPublicMediaUrl(props.siteConfig.brand_logo || props.siteConfig.site_logo || '')
+)
 
 const footerBlocks = computed(() =>
   (props.siteConfig.footer_blocks || []).filter((b) => Number(b.status) !== 0)
@@ -40,9 +45,9 @@ function isExternal(url) {
       <div class="footer-grid" :class="gridClass">
         <div class="footer-brand">
           <img
-            v-if="siteConfig.brand_logo || siteConfig.site_logo"
+            v-if="brandLogoSrc"
             class="brand-logo"
-            :src="siteConfig.brand_logo || siteConfig.site_logo"
+            :src="brandLogoSrc"
             alt="品牌 Logo"
           />
           <div v-else class="brand-name">诺元智合</div>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { toPublicMediaUrl } from '@/utils/media'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -42,7 +43,7 @@ const selectedVariant = computed(() => {
 })
 
 const displayCover = computed(() => {
-  return selectedVariant.value?.image_url || props.product.cover_image || ''
+  return toPublicMediaUrl(selectedVariant.value?.image_url || props.product.cover_image || '')
 })
 
 function onInquiry() {

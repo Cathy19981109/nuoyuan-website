@@ -1,5 +1,7 @@
 /**
  * Resolve CMS media paths for local (Vite proxy) and production (Vercel + Railway).
+ * DB stores paths like `/uploads/images/xxx.png`. On Vercel those must hit the API host,
+ * not the frontend origin.
  */
 export function getApiOrigin() {
   const base = String(import.meta.env.VITE_API_BASE_URL || '').trim()
@@ -24,6 +26,7 @@ export function toPublicMediaUrl(url) {
   else if (!path.startsWith('/')) path = `/${path}`
 
   const origin = getApiOrigin()
+  // Absolute API host in production; keep relative in local so Vite proxy can serve /uploads
   if (origin && (path.startsWith('/uploads/') || path.startsWith('/static/'))) {
     return `${origin}${path}`
   }
