@@ -5,7 +5,15 @@
       "destination": "https://nuoyuan-website-production.up.railway.app/uploads/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/mario",
+      "destination": "/mario/index.html"
+    },
+    {
+      "source": "/mario/(.*)",
+      "destination": "/mario/$1"
+    },
+    {
+      "source": "/((?!mario/).*)",
       "destination": "/index.html"
     }
   ]
