@@ -4,10 +4,13 @@
 
 ## 网页版（推荐，直接打开链接玩）
 
-打开下面任意一个链接即可在浏览器里玩（无需安装）：
+**现在就能玩（Vercel 预览合并到主站后也会生效）：**
 
-- 站点路径（合并部署后）：`https://nuoyuan-frontend.vercel.app/mario/`
-- 本仓库文件：打开 `mario_game/index.html`，或用本地静态服务：
+- 正式站（合并 PR 并部署后）：https://nuoyuan-frontend.vercel.app/mario/
+- GitHub 网页预览（当前分支，无需安装）：  
+  https://htmlpreview.github.io/?https://github.com/Cathy19981109/nuoyuan-website/blob/cursor/simple-mario-game-f0f3/mario_game/index.html
+
+本地打开也可以：双击 `mario_game/index.html`，或：
 
 ```bash
 cd mario_game
